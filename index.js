@@ -391,8 +391,8 @@ class NvidiaGpuMonitor {
     async _determineCoresStatistic() {
         await this._parseGpuStat();
 
-        this._gpuEncodersUsage = this._encoderUsageCalculator.getUtilization(this._gpuEncodersUtilization);
-        this._gpuDecodersUsage = this._decoderUsageCalculator.getUtilization(this._gpuDecodersUtilization);
+        this._gpuEncodersUsage = this._encoderUsageCalculator.getUsage(this._gpuEncodersUtilization);
+        this._gpuDecodersUsage = this._decoderUsageCalculator.getUsage(this._gpuDecodersUtilization);
         this._isOverloaded = this._isMemOverloaded() || this._isEncoderOverloaded() || this._isDecoderOverloaded();
     }
 
