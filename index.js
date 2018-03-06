@@ -1,35 +1,15 @@
 'use strict';
 
-const fs = require('fs');
 const exec = require('child_process').exec;
 const promisify = require('util').promisify;
 
 const GpuUtilization = require('./lib/GpuUtilization');
 const GpuUtilizationSma = require('./lib/GpuUtilizationSma');
+const NvidiaGpuInfo = require('./lib/NvidiaGpuInfo');
 
-const readFileAsync = promisify(fs.readFile);
-const fsAccessAsync = promisify(fs.access());
 const execAsync = promisify(exec);
 
 const CORE_ID_LINE_REGEXP = /GPU \d+:\d+:\d+.\d/;
-
-/**
- * @param {string} gpuInfoPath
- * @returns {Promise.<void|Error>}
- * @private
- */
-function assertReadFileAccess(gpuInfoPath) {
-    return fsAccessAsync(gpuInfoPath, fs.constants.R_OK);
-}
-
-/**
- * Driver Version                      : 384.111
- * @param {string} row
- * @return {string}
- */
-function getGpuDriverVersionFromRow(row) {
-    return row.split(':')[1].trim();
-}
 
 /**
  * Row example: GPU 00000000:06:00.0
@@ -38,24 +18,6 @@ function getGpuDriverVersionFromRow(row) {
  */
 function getCoreIdFromRow(row) {
     return row.split('GPU ')[1].trim();
-}
-
-/**
- * Row example: Product Name                    : Tesla M60
- * @param {string} row
- * @return {string}
- */
-function getProductNameFromRow(row) {
-    return row.split(':')[1].trim();
-}
-
-/**
- * Row example: Minor Number                    : 0
- * @param {string} row
- * @return {string}
- */
-function getCoreNumberFromRow(row) {
-    return row.split(':')[1].trim();
 }
 
 /**
@@ -87,19 +49,14 @@ class NvidiaGpuMonitor {
 
     /**
      * @param {string} nvidiaSmiPath
-     * @param {string} gpuStatPath
      * @param {number} checkInterval
      * @param {Object} mem
      * @param {Object} decoder
      * @param {Object} encoder
      */
-    constructor({nvidiaSmiPath, gpuStatPath, checkInterval, mem, decoder, encoder}) {
+    constructor({nvidiaSmiPath, checkInterval, mem, decoder, encoder}) {
         if (typeof nvidiaSmiPath !== 'string') {
             throw new TypeError('field `nvidiaSmiPath` is required and must be a string');
-        }
-
-        if (typeof gpuStatPath !== 'string') {
-            throw new TypeError('field `gpuStatPath` is required and must be a string');
         }
 
         if (!Number.isSafeInteger(checkInterval) || checkInterval < 1) {
@@ -107,7 +64,6 @@ class NvidiaGpuMonitor {
         }
 
         this._nvidiaSmiPath = nvidiaSmiPath;
-        this._gpuStatPath = gpuStatPath;
         this._checkInterval = checkInterval;
 
         this._isMemOverloaded = undefined;
@@ -122,8 +78,8 @@ class NvidiaGpuMonitor {
 
         this._status = NvidiaGpuMonitor.STATUS_STOPPED;
 
-        this._gpuMetaInfo = {};
-        this._coresId2NumberHash = {};
+        this._nvidiaGpuInfo = new NvidiaGpuInfo(nvidiaSmiPath);
+        this._gpuMetaInfo = Object.create(null);
         this._gpuCoresMem = {};
         this._gpuEncodersUsage = {};
         this._gpuDecodersUsage = {};
@@ -139,8 +95,7 @@ class NvidiaGpuMonitor {
             throw new Error('NvidiaGpuMonitor service is already started');
         }
 
-        await assertReadFileAccess(this._gpuStatPath);
-        await this._parseGpuMetaData();
+        await this._nvidiaGpuInfo.parseGpuMetaData();
         await this._determineCoresStatistic();
 
         this._monitorScheduler = setInterval(() => this._determineCoresStatistic(), this._checkInterval);
@@ -167,9 +122,9 @@ class NvidiaGpuMonitor {
 
         const gpuStat = [];
 
-        for (const coreId in this._coresId2NumberHash) {
+        for (const coreId in this._nvidiaGpuInfo.getCoreId2NumberHash()) {
             gpuStat.push({
-                core: this._coresId2NumberHash[coreId],
+                core: this._nvidiaGpuInfo.getCoreNumberById(coreId),
                 mem: {
                     free: this._gpuCoresMem[coreId].free
                 },
@@ -205,60 +160,35 @@ class NvidiaGpuMonitor {
         return this._isOverloaded;
     }
 
-    /* istanbul ignore next */
-    async _readCoresMetaData() {
-        const {stdout} = await execAsync(
-            `${this._nvidiaSmiPath} -q | egrep "GPU 0|Minor Number|Product Name|Driver Version"`
-        );
-
-        return stdout;
-    }
-
-    /* istanbul ignore next */
-    _readGpuStatFile() {
-        return readFileAsync(this._gpuStatPath, 'utf8');
-    }
-
-    /*
-        STDOUT content example:
-        Driver Version                      : 384.111
-        GPU 00000000:06:00.0
-            Product Name                    : Tesla M60
-            Minor Number                    : 0
-        GPU 00000000:07:00.0
-            Product Name                    : Tesla M60
-            Minor Number                    : 1
+    /**
+     * @returns {string}
      */
-    async _parseGpuMetaData() {
-        const coresMetaData = await this._readCoresMetaData();
-
-        let driverVersion;
-        let coreId;
-        for (const line of coresMetaData.split('\n')) {
-            if (driverVersion === undefined && line.includes('Driver Version')) {
-                driverVersion = getGpuDriverVersionFromRow(line);
-                continue;
-            }
-
-            if (line.includes('GPU')) {
-                coreId = getCoreIdFromRow(line);
-                this._gpuMetaInfo[coreId] = {};
-                continue;
-            }
-
-            if (coreId !== undefined && line.includes('Product Name')) {
-                this._gpuMetaInfo[coreId]['productName'] = getProductNameFromRow(line);
-                continue;
-            }
-
-            if (coreId !== undefined && line.includes('Minor Number')) {
-                const coreNumber = Number.parseInt(getCoreNumberFromRow(line));
-                this._gpuMetaInfo[coreId]['minorNumber'] = coreNumber;
-                this._coresId2NumberHash[coreId] = coreNumber;
-            }
+    getGpuDriverVersion() {
+        if (this._status === NvidiaGpuMonitor.STATUS_STOPPED) {
+            throw new Error('NvidiaGpuMonitor service is not started');
         }
 
-        this._gpuMetaInfo.driverVersion = driverVersion;
+        return this._nvidiaGpuInfo.getDriverVersion();
+    }
+
+    /**
+     * @returns {string}
+     */
+    getGpuProductName() {
+        if (this._status === NvidiaGpuMonitor.STATUS_STOPPED) {
+            throw new Error('NvidiaGpuMonitor service is not started');
+        }
+
+        return this._nvidiaGpuInfo.getProductName();
+    }
+
+    /**
+     * @returns {string}
+     */
+    async _readGpuStatData() {
+        const {stdout} = await execAsync(`${this._nvidiaSmiPath} -q -d UTILIZATION,MEMORY`);
+
+        return stdout;
     }
 
     /*
@@ -312,42 +242,37 @@ class NvidiaGpuMonitor {
      */
     async _parseGpuStat() {
         let gpuStat;
+        let wasError = false;
+
         try {
-            gpuStat = await this._readGpuStatFile();
+            gpuStat = await this._readGpuStatData();
         } catch (err) {
-            for (const coreId in this._coresId2NumberHash) {
-                this._gpuCoresMem[coreId] = {
-                    total: -1,
-                    free: -1
-                };
-                this._gpuEncodersUtilization[coreId] = 100;
-                this._gpuDecodersUtilization[coreId] = 100;
-            }
+            wasError = true;
             return;
         }
 
-        let gpuCoresMem = {};
-        let gpuEncodersUtilization = {};
-        let gpuDecodersUtilization = {};
+        // Set default values
+        for (const coreId in this._nvidiaGpuInfo.getCoreId2NumberHash()) {
+            this._gpuCoresMem[coreId] = {
+                total: -1,
+                free: -1
+            };
+            this._gpuEncodersUtilization[coreId] = 100;
+            this._gpuDecodersUtilization[coreId] = 100;
+        }
+
+        if (wasError) {
+            return;
+        }
+
         let coreId;
         let fbMemBlock = false;
+        let fbMemIndicatorCounter = 2;
         for (const line of gpuStat.split('\n')) {
             if (CORE_ID_LINE_REGEXP.test(line)) {
                 fbMemBlock = false;
+                fbMemIndicatorCounter = 2;
                 coreId = getCoreIdFromRow(line);
-                const coreNumber = this._coresId2NumberHash[coreId];
-
-                if (!Number.isInteger(coreNumber)) {
-                    continue;
-                }
-
-                gpuCoresMem[coreId] = {
-                    total: -1,
-                    free: -1
-                };
-
-                gpuEncodersUtilization[coreId] = 100;
-                gpuDecodersUtilization[coreId] = 100;
 
                 continue;
             }
@@ -357,21 +282,23 @@ class NvidiaGpuMonitor {
                 continue;
             }
 
-            if (fbMemBlock && line.includes('Total')) {
+            if (fbMemBlock && fbMemIndicatorCounter && line.includes('Total')) {
+                fbMemIndicatorCounter--;
                 const totalMem = Number.parseInt(getMemoryValueFromRow(line));
 
                 if (Number.isInteger(totalMem)) {
-                    gpuCoresMem[coreId].mem.total = totalMem;
+                    this._gpuCoresMem[coreId].mem.total = totalMem;
                 }
 
                 continue;
             }
 
-            if (fbMemBlock && line.includes('Free')) {
+            if (fbMemBlock && fbMemIndicatorCounter && line.includes('Free')) {
+                fbMemIndicatorCounter--;
                 const freeMem = Number.parseInt(getMemoryValueFromRow(line));
 
                 if (Number.isInteger(freeMem)) {
-                    gpuCoresMem[coreId].mem.free = freeMem;
+                    this._gpuCoresMem[coreId].mem.free = freeMem;
                 }
 
                 continue;
@@ -381,7 +308,7 @@ class NvidiaGpuMonitor {
                 const encoderUtilization = Number.parseInt(getUtilizationValueFromRow(line));
 
                 if (Number.isInteger(encoderUtilization)) {
-                    gpuEncodersUtilization[coreId] = encoderUtilization;
+                    this._gpuEncodersUtilization[coreId] = encoderUtilization;
                 }
 
                 continue;
@@ -391,14 +318,10 @@ class NvidiaGpuMonitor {
                 const decoderUtilization = Number.parseInt(getUtilizationValueFromRow(line));
 
                 if (Number.isInteger(decoderUtilization)) {
-                    gpuDecodersUtilization[coreId] = decoderUtilization;
+                    this._gpuDecodersUtilization[coreId] = decoderUtilization;
                 }
             }
         }
-
-        this._gpuCoresMem = gpuCoresMem;
-        this._gpuEncodersUtilization = gpuEncodersUtilization;
-        this._gpuDecodersUtilization = gpuDecodersUtilization;
     }
 
     async _determineCoresStatistic() {
@@ -420,32 +343,50 @@ class NvidiaGpuMonitor {
 
     /**
      * @param {number} minFree
-     * @param {number} free
-     * @param {number} total
+     * @param {Object} coresMemCollection
      * @returns {boolean}
      */
-    _isMemOverloadedByFixedThreshold(minFree, free, total) {
-        return this._isMemOverloadedByIncorrectData(free, total) || free < minFree;
+    _isMemOverloadedByFixedThreshold(minFree, coresMemCollection) {
+        for (const coreId in coresMemCollection) {
+            const {free, total} = coresMemCollection[coreId];
+            if (this._isMemOverloadedByIncorrectData(free, total) || free < minFree) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
      * @param {number} highWatermark
-     * @param {number} free
-     * @param {number} total
+     * @param {Object} coresMemCollection
      * @returns {boolean}
      */
-    _isMemOverloadedByRateThreshold(highWatermark, free, total) {
-        return this._isMemOverloadedByIncorrectData(free, total) || (total - free) / total > highWatermark;
+    _isMemOverloadedByRateThreshold(highWatermark, coresMemCollection) {
+        for (const coreId in coresMemCollection) {
+            const {free, total} = coresMemCollection[coreId];
+            if (this._isMemOverloadedByIncorrectData(free, total) || ((total - free) / total) > highWatermark) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
      * @param {number} highWatermark
-     * @param {number} usage
+     * @param {Object} coresUsageCollection
      * @returns {boolean}
      * @private
      */
-    _isGpuUsageOverloadByRateThreshold(highWatermark, usage) {
-        return highWatermark * 100 < usage;
+    _isGpuUsageOverloadByRateThreshold(highWatermark, coresUsageCollection) {
+        for (const coreId in coresUsageCollection) {
+            if ((highWatermark * 100) < coresUsageCollection[coreId]) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -459,20 +400,24 @@ class NvidiaGpuMonitor {
 
         if (mem.thresholdType === 'fixed') {
             if (!Number.isSafeInteger(mem.minFree) || mem.minFree <= 0) {
-                throw new TypeError('`mem.minFree` field is required for threshold = fixed and must be more then 0');
+                throw new TypeError('`mem.minFree` field is required for threshold = fixed and must be more than 0');
             }
 
-            this._isMemOverloaded = this._isMemOverloadedByFixedThreshold.bind(this, mem.minFree);
+            this._isMemOverloaded = this._isMemOverloadedByFixedThreshold.bind(this, mem.minFree, this._gpuCoresMem);
         } else if (mem.thresholdType === 'rate') {
-            if (mem.highWatermark <= 0 || mem.highWatermark >= 1) {
+            if (!Number.isFinite(mem.highWatermark) || mem.highWatermark <= 0 || mem.highWatermark >= 1) {
                 throw new TypeError(
                     '`mem.highWatermark` field is required for threshold = "rate" and must be in range (0;1)'
                 );
             }
 
-            this._isMemOverloaded = this._isMemOverloadedByRateThreshold.bind(this, mem.highWatermark);
+            this._isMemOverloaded = this._isMemOverloadedByRateThreshold.bind(
+                this,
+                mem.highWatermark,
+                this._gpuCoresMem
+            );
         } else if (mem.thresholdType === 'none') {
-            this._isMemOverloaded = this._isMemOverloadedByIncorrectData.bind(this);
+            this._isMemOverloaded = this._isMemOverloadedByIncorrectData;
         } else {
             throw new TypeError('`mem.thresholdType` is not set or has invalid type');
         }
@@ -491,7 +436,7 @@ class NvidiaGpuMonitor {
         if (encoder.calculationAlgo === 'sma') {
             if (!Number.isSafeInteger(encoder.periodPoints) || encoder.periodPoints < 1) {
                 throw new TypeError(
-                    '`encoder.periodPoints` field is required for SMA algorithm and must be more than 0'
+                    '`encoder.periodPoints` field is required for SMA algorithm and must be more or equal than 0'
                 );
             }
             this._encoderUsageCalculator = new GpuUtilizationSma(encoder.periodPoints);
@@ -502,13 +447,17 @@ class NvidiaGpuMonitor {
         }
 
         if (encoder.thresholdType === 'rate') {
-            if (!Number.isFinite(encoder.highWatermark) || encoder.highWatermark > 1) {
+            if (!Number.isFinite(encoder.highWatermark) || encoder.highWatermark <= 0 || encoder.highWatermark >= 1) {
                 throw new TypeError(
-                    '`encoder.highWatermark` field is required for threshold = "rate" and must be in range (0,1]'
+                    '`encoder.highWatermark` field is required for threshold = "rate" and must be in range (0,1)'
                 );
             }
 
-            this._isEncoderOverloaded = this._isGpuUsageOverloadByRateThreshold.bind(null, encoder.highWatermark);
+            this._isEncoderOverloaded = this._isGpuUsageOverloadByRateThreshold.bind(
+                null,
+                encoder.highWatermark,
+                this._gpuEncodersUsage
+            );
         } else if (encoder.thresholdType === 'none') {
             this._isEncoderOverloaded = () => false;
         } else {
@@ -540,13 +489,17 @@ class NvidiaGpuMonitor {
         }
 
         if (decoder.thresholdType === 'rate') {
-            if (!Number.isFinite(decoder.highWatermark) || decoder.highWatermark > 1) {
+            if (!Number.isFinite(decoder.highWatermark) || decoder.highWatermark <= 0 || decoder.highWatermark >= 1) {
                 throw new TypeError(
-                    '`decoder.highWatermark` field is required for threshold = "rate" and must be in range (0,1]'
+                    '`decoder.highWatermark` field is required for threshold = "rate" and must be in range (0,1)'
                 );
             }
 
-            this._isDecoderOverloaded = this._isGpuUsageOverloadByRateThreshold.bind(null, decoder.highWatermark);
+            this._isDecoderOverloaded = this._isGpuUsageOverloadByRateThreshold.bind(
+                null,
+                decoder.highWatermark,
+                this._gpuDecodersUsage
+            );
         } else if (decoder.thresholdType === 'none') {
             this._isDecoderOverloaded = () => false;
         } else {

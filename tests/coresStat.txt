@@ -1,0 +1,42 @@
+Timestamp                           : Tue Feb 20 15:26:54 2018
+Driver Version                      : 384.111
+
+Attached GPUs                       : 4
+GPU 00000000:06:00.0
+    FB Memory Usage
+        Total                       : 8123 MiB
+        Used                        : 149 MiB
+        Free                        : 7974 MiB
+    BAR1 Memory Usage
+        Total                       : 256 MiB
+        Used                        : 2 MiB
+        Free                        : 254 MiB
+    Utilization
+        Gpu                         : 13 %
+        Memory                      : 10 %
+        Encoder                     : 42 %
+        Decoder                     : 24 %
+    GPU Utilization Samples
+        Duration                    : 18446744073709.22 sec
+        Number of Samples           : 99
+        Max                         : 15 %
+        Min                         : 0 %
+        Avg                         : 0 %
+    Memory Utilization Samples
+        Duration                    : 18446744073709.22 sec
+        Number of Samples           : 99
+        Max                         : 10 %
+        Min                         : 0 %
+        Avg                         : 0 %
+    ENC Utilization Samples
+        Duration                    : 18446744073709.22 sec
+        Number of Samples           : 99
+        Max                         : 42 %
+        Min                         : 0 %
+        Avg                         : 0 %
+    DEC Utilization Samples
+        Duration                    : 18446744073709.22 sec
+        Number of Samples           : 99
+        Max                         : 24 %
+        Min                         : 0 %
+        Avg                         : 0 %

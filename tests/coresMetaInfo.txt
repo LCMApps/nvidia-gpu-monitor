@@ -1,0 +1,7 @@
+Driver Version                      : 384.111
+GPU 00000000:06:00.0
+    Product Name                    : Tesla M60
+    Minor Number                    : 0
+GPU 00000000:07:00.0
+    Product Name                    : Tesla M60
+    Minor Number                    : 1
