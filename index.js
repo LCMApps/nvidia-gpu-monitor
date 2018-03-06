@@ -236,7 +236,7 @@ class NvidiaGpuMonitor {
         let coreId;
         for (const line of coresMetaData.split('\n')) {
             if (driverVersion === undefined && line.includes('Driver Version')) {
-                driverVersion= getGpuDriverVersionFromRow(line);
+                driverVersion = getGpuDriverVersionFromRow(line);
                 continue;
             }
 
@@ -311,7 +311,20 @@ class NvidiaGpuMonitor {
                 Used GPU Memory         : 138 MiB
      */
     async _parseGpuStat() {
-        const gpuStat = await this._readGpuStatFile();
+        let gpuStat;
+        try {
+            gpuStat = await this._readGpuStatFile();
+        } catch (err) {
+            for (const coreId in this._coresId2NumberHash) {
+                this._gpuCoresMem[coreId] = {
+                    total: -1,
+                    free: -1
+                };
+                this._gpuEncodersUtilization[coreId] = 100;
+                this._gpuDecodersUtilization[coreId] = 100;
+            }
+            return;
+        }
 
         let gpuCoresMem = {};
         let gpuEncodersUtilization = {};
@@ -347,7 +360,7 @@ class NvidiaGpuMonitor {
             if (fbMemBlock && line.includes('Total')) {
                 const totalMem = Number.parseInt(getMemoryValueFromRow(line));
 
-                if(Number.isInteger(totalMem)) {
+                if (Number.isInteger(totalMem)) {
                     gpuCoresMem[coreId].mem.total = totalMem;
                 }
 
@@ -357,7 +370,7 @@ class NvidiaGpuMonitor {
             if (fbMemBlock && line.includes('Free')) {
                 const freeMem = Number.parseInt(getMemoryValueFromRow(line));
 
-                if(Number.isInteger(freeMem)) {
+                if (Number.isInteger(freeMem)) {
                     gpuCoresMem[coreId].mem.free = freeMem;
                 }
 
@@ -367,7 +380,7 @@ class NvidiaGpuMonitor {
             if (line.includes('Encoder')) {
                 const encoderUtilization = Number.parseInt(getUtilizationValueFromRow(line));
 
-                if(Number.isInteger(encoderUtilization)) {
+                if (Number.isInteger(encoderUtilization)) {
                     gpuEncodersUtilization[coreId] = encoderUtilization;
                 }
 
@@ -377,7 +390,7 @@ class NvidiaGpuMonitor {
             if (line.includes('Decoder')) {
                 const decoderUtilization = Number.parseInt(getUtilizationValueFromRow(line));
 
-                if(Number.isInteger(decoderUtilization)) {
+                if (Number.isInteger(decoderUtilization)) {
                     gpuDecodersUtilization[coreId] = decoderUtilization;
                 }
             }
