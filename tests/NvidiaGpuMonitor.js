@@ -80,4 +80,40 @@ describe('NvidiaGpuMonitor', () => {
             assert.equal(actualSchedulerClass, expectedSchedulerClass);
         }
     });
+
+    it('stop scheduler', async () => {
+        const determineCoresStatisticStub = sinon.stub(nvidiaGpuMonitor, '_determineCoresStatistic');
+        const parseGpuMetaDataStub = sinon.stub(nvidiaGpuMonitor._nvidiaGpuInfo, 'parseGpuMetaData');
+
+        await nvidiaGpuMonitor.start();
+        nvidiaGpuMonitor.stop();
+
+        assert.isTrue(determineCoresStatisticStub.calledOnce);
+        assert.isTrue(determineCoresStatisticStub.calledWithExactly());
+        assert.isTrue(parseGpuMetaDataStub.calledOnce);
+        assert.isTrue(parseGpuMetaDataStub.calledWithExactly());
+        assert.equal(nvidiaGpuMonitor._status, NvidiaGpuMonitor.STATUS_STOPPED);
+        assert.equal(nvidiaGpuMonitor._monitorScheduler._repeat, null);
+    });
+
+    it('second stop call throw error', async () => {
+        const determineCoresStatisticStub = sinon.stub(nvidiaGpuMonitor, '_determineCoresStatistic');
+        const parseGpuMetaDataStub = sinon.stub(nvidiaGpuMonitor._nvidiaGpuInfo, 'parseGpuMetaData');
+
+        await nvidiaGpuMonitor.start();
+        nvidiaGpuMonitor.stop();
+
+        assert.throws(() => {
+            nvidiaGpuMonitor.stop();
+        }, 'NvidiaGpuMonitor service is not started');
+
+        assert.isTrue(determineCoresStatisticStub.calledOnce);
+        assert.isTrue(determineCoresStatisticStub.calledWithExactly());
+        assert.isTrue(parseGpuMetaDataStub.calledOnce);
+        assert.isTrue(parseGpuMetaDataStub.calledWithExactly());
+        assert.equal(nvidiaGpuMonitor._status, NvidiaGpuMonitor.STATUS_STOPPED);
+        assert.equal(nvidiaGpuMonitor._monitorScheduler._repeat, null);
+    });
+
+
 });

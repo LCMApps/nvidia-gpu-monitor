@@ -9,34 +9,13 @@ const NvidiaGpuInfo = require('./lib/NvidiaGpuInfo');
 
 const execAsync = promisify(exec);
 
-const CORE_ID_LINE_REGEXP = /GPU \d+:\d+:\d+.\d/;
-
-/**
- * Row example: GPU 00000000:06:00.0
- * @param {string} row
- * @return {string}
- */
-function getCoreIdFromRow(row) {
-    return row.split('GPU ')[1].trim();
-}
-
-/**
- * Row example: Total                       : 256 MiB
- * @param {string} row
- * @return {string}
- */
-function getMemoryValueFromRow(row) {
-    return row.split(':')[1].trim().slice(0, -4);
-}
-
-/**
- * Row example: Encoder                     : 42 %
- * @param {string} row
- * @return {string}
- */
-function getUtilizationValueFromRow(row) {
-    return row.split(':')[1].trim().slice(0, -2);
-}
+const STAT_GRAB_PATTERN = new RegExp(
+    'GPU (\\d+:\\d+:\\d+.\\d+)[\\s\\S]+?'
+    + 'FB Memory Usage\\s+Total\\s+: (\\d+) MiB\\s+Used\\s+: \\d+ MiB\\s+Free\\s+: (\\d+) MiB[\\s\\S]+?'
+    + 'Encoder\\s*:\\s*(\\d+)\\s*%[\\s\\S]+?'
+    + 'Decoder\\s*:\\s*(\\d+)\\s*%',
+    'g'
+);
 
 class NvidiaGpuMonitor {
     static get STATUS_STOPPED() {
@@ -265,60 +244,25 @@ class NvidiaGpuMonitor {
             return;
         }
 
-        let coreId;
-        let fbMemBlock = false;
-        let fbMemIndicatorCounter = 2;
-        for (const line of gpuStat.split('\n')) {
-            if (CORE_ID_LINE_REGEXP.test(line)) {
-                fbMemBlock = false;
-                fbMemIndicatorCounter = 2;
-                coreId = getCoreIdFromRow(line);
-
-                continue;
-            }
-
-            if (line.includes('FB Memory Usage')) {
-                fbMemBlock = true;
-                continue;
-            }
-
-            if (fbMemBlock && fbMemIndicatorCounter && line.includes('Total')) {
-                fbMemIndicatorCounter--;
-                const totalMem = Number.parseInt(getMemoryValueFromRow(line));
+        let matchResult;
+        while ((matchResult = STAT_GRAB_PATTERN.exec(gpuStat)) !== null) {
+            if (matchResult[1] !== undefined) {
+                const totalMem = Number.parseInt(matchResult[2]);
+                const freeMem = Number.parseInt(matchResult[3]);
+                const encoderUtilization = Number.parseInt(matchResult[4]);
+                const decoderUtilization = Number.parseInt(matchResult[5]);
 
                 if (Number.isInteger(totalMem)) {
-                    this._gpuCoresMem[coreId].mem.total = totalMem;
+                    this._gpuCoresMem[matchResult[1]].mem.total = totalMem;
                 }
-
-                continue;
-            }
-
-            if (fbMemBlock && fbMemIndicatorCounter && line.includes('Free')) {
-                fbMemIndicatorCounter--;
-                const freeMem = Number.parseInt(getMemoryValueFromRow(line));
-
                 if (Number.isInteger(freeMem)) {
-                    this._gpuCoresMem[coreId].mem.free = freeMem;
+                    this._gpuCoresMem[matchResult[1]].mem.free = freeMem;
                 }
-
-                continue;
-            }
-
-            if (line.includes('Encoder')) {
-                const encoderUtilization = Number.parseInt(getUtilizationValueFromRow(line));
-
                 if (Number.isInteger(encoderUtilization)) {
-                    this._gpuEncodersUtilization[coreId] = encoderUtilization;
+                    this._gpuCoresMem[matchResult[1]].encoder = encoderUtilization;
                 }
-
-                continue;
-            }
-
-            if (line.includes('Decoder')) {
-                const decoderUtilization = Number.parseInt(getUtilizationValueFromRow(line));
-
-                if (Number.isInteger(decoderUtilization)) {
-                    this._gpuDecodersUtilization[coreId] = decoderUtilization;
+                if (Number.isInteger(totalMem)) {
+                    this._gpuCoresMem[matchResult[1]].decoder = decoderUtilization;
                 }
             }
         }
