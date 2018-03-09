@@ -35,30 +35,29 @@ class NvidiaGpuMonitor {
      */
     constructor({nvidiaSmiPath, checkInterval, mem, decoder, encoder}) {
         if (typeof nvidiaSmiPath !== 'string') {
-            throw new TypeError('field `nvidiaSmiPath` is required and must be a string');
+            throw new TypeError('field "nvidiaSmiPath" is required and must be a string');
         }
 
         if (!Number.isSafeInteger(checkInterval) || checkInterval < 1) {
-            throw new TypeError('field `checkInterval` is required and must be an integer and more than 1');
+            throw new TypeError('field "checkInterval" is required and must be an integer and not less than 1');
         }
 
         this._nvidiaSmiPath = nvidiaSmiPath;
         this._checkInterval = checkInterval;
-
         this._isMemOverloaded = undefined;
-        this._isEncoderOverloaded = undefined;
-        this._isDecoderOverloaded = undefined;
-        this._decoderUsageCalculator = undefined;
-        this._encoderUsageCalculator = undefined;
 
         this._initMemChecks(mem);
-        this._initDecoderChecks(decoder);
-        this._initEncoderChecks(encoder);
+        const encoderCheckers = this._initCoreUtilizationChecks(encoder, 'encoder');
+        const decoderCheckers = this._initCoreUtilizationChecks(decoder, 'decoder');
+
+        this._encoderUsageCalculator = encoderCheckers.usageCalculator;
+        this._isEncoderOverloaded = encoderCheckers.usageOverloadedChecker;
+        this._isDecoderOverloaded = decoderCheckers.usageCalculator;
+        this._decoderUsageCalculator = decoderCheckers.usageOverloadedChecker;
 
         this._status = NvidiaGpuMonitor.STATUS_STOPPED;
 
         this._nvidiaGpuInfo = new NvidiaGpuInfo(nvidiaSmiPath);
-        this._gpuMetaInfo = Object.create(null);
         this._gpuCoresMem = {};
         this._gpuEncodersUsage = {};
         this._gpuDecodersUsage = {};
@@ -125,7 +124,11 @@ class NvidiaGpuMonitor {
             throw new Error('NvidiaGpuMonitor service is not started');
         }
 
-        return this._gpuMetaInfo;
+        return {
+            productName: this._nvidiaGpuInfo.getProductName(),
+            driverVersion: this._nvidiaGpuInfo.getDriverVersion(),
+            coresList: this._nvidiaGpuInfo.getCoresNumberList()
+        };
     }
 
     /**
@@ -338,20 +341,20 @@ class NvidiaGpuMonitor {
      * @param {string} mem.thresholdType
      */
     _initMemChecks(mem) {
-        if (typeof mem !== 'object') {
-            throw new TypeError('field `mem` is required and must be an object');
+        if (typeof mem !== 'object' || mem === null) {
+            throw new TypeError('field "mem" is required and must be an object');
         }
 
         if (mem.thresholdType === 'fixed') {
             if (!Number.isSafeInteger(mem.minFree) || mem.minFree <= 0) {
-                throw new TypeError('`mem.minFree` field is required for threshold = fixed and must be more than 0');
+                throw new TypeError('"mem.minFree" field is required for threshold = fixed and must be more than 0');
             }
 
             this._isMemOverloaded = this._isMemOverloadedByFixedThreshold.bind(this, mem.minFree, this._gpuCoresMem);
         } else if (mem.thresholdType === 'rate') {
             if (!Number.isFinite(mem.highWatermark) || mem.highWatermark <= 0 || mem.highWatermark >= 1) {
                 throw new TypeError(
-                    '`mem.highWatermark` field is required for threshold = "rate" and must be in range (0;1)'
+                    '"mem.highWatermark" field is required for threshold = "rate" and must be in range (0;1)'
                 );
             }
 
@@ -363,92 +366,59 @@ class NvidiaGpuMonitor {
         } else if (mem.thresholdType === 'none') {
             this._isMemOverloaded = this._isMemOverloadedByIncorrectData;
         } else {
-            throw new TypeError('`mem.thresholdType` is not set or has invalid type');
+            throw new TypeError('"mem.thresholdType" is not set or has invalid type');
         }
     }
 
     /**
-     * @param {Object} encoder
-     * @param {string} encoder.calculationAlgo
-     * @param {string} encoder.thresholdType
+     * @param {Object} config
+     * @param {string} config.calculationAlgo
+     * @param {string} config.thresholdType
+     * @param {string} utilizationParameter
+     * @returns {{usageCalculator, usageOverloadedChecker}}
      */
-    _initEncoderChecks(encoder) {
-        if (typeof encoder !== 'object') {
-            throw new TypeError('field `encoder` is required and must be an object');
+    _initCoreUtilizationChecks(config, utilizationParameter) {
+        let usageCalculator;
+        let usageOverloadedChecker;
+
+        if (typeof config !== 'object' || config === null) {
+            throw new TypeError(`field "${utilizationParameter}" is required and must be an object`);
         }
 
-        if (encoder.calculationAlgo === 'sma') {
-            if (!Number.isSafeInteger(encoder.periodPoints) || encoder.periodPoints < 1) {
+        if (config.calculationAlgo === 'sma') {
+            if (!Number.isSafeInteger(config.periodPoints) || config.periodPoints < 1) {
                 throw new TypeError(
-                    '`encoder.periodPoints` field is required for SMA algorithm and must be more or equal than 0'
+                    `"${utilizationParameter}.periodPoints" field is required for SMA algorithm`
+                    + ' and must be not less than 0'
                 );
             }
-            this._encoderUsageCalculator = new GpuUtilizationSma(encoder.periodPoints);
-        } else if (encoder.calculationAlgo === 'last_value') {
-            this._encoderUsageCalculator = new GpuUtilization();
+            usageCalculator = new GpuUtilizationSma(config.periodPoints);
+        } else if (config.calculationAlgo === 'last_value') {
+            usageCalculator = new GpuUtilization();
         } else {
-            throw new TypeError('`encoder.calculationAlgo` is not set or has invalid type');
+            throw new TypeError(`"${utilizationParameter}.calculationAlgo" is not set or has invalid type`);
         }
 
-        if (encoder.thresholdType === 'rate') {
-            if (!Number.isFinite(encoder.highWatermark) || encoder.highWatermark <= 0 || encoder.highWatermark >= 1) {
+        if (config.thresholdType === 'rate') {
+            if (!Number.isFinite(config.highWatermark) || config.highWatermark <= 0 || config.highWatermark >= 1) {
                 throw new TypeError(
-                    '`encoder.highWatermark` field is required for threshold = "rate" and must be in range (0,1)'
+                    `"${utilizationParameter}.highWatermark" field is required for threshold = "rate"`
+                    + ' and must be in range (0,1)'
                 );
             }
 
-            this._isEncoderOverloaded = this._isGpuUsageOverloadByRateThreshold.bind(
+            usageOverloadedChecker = this._isGpuUsageOverloadByRateThreshold.bind(
                 null,
-                encoder.highWatermark,
+                config.highWatermark,
                 this._gpuEncodersUsage
             );
-        } else if (encoder.thresholdType === 'none') {
-            this._isEncoderOverloaded = () => false;
+        } else if (config.thresholdType === 'none') {
+            usageOverloadedChecker = () => false;
         } else {
-            throw new TypeError('`encoder.thresholdType` is not set or has invalid type');
-        }
-    }
-
-    /**
-     * @param {Object} decoder
-     * @param {string} decoder.calculationAlgo
-     * @param {string} decoder.thresholdType
-     */
-    _initDecoderChecks(decoder) {
-        if (typeof decoder !== 'object') {
-            throw new TypeError('field `decoder` is required and must be an object');
+            throw new TypeError(`"${utilizationParameter}.thresholdType" is not set or has invalid type`);
         }
 
-        if (decoder.calculationAlgo === 'sma') {
-            if (!Number.isSafeInteger(decoder.periodPoints) || decoder.periodPoints < 1) {
-                throw new TypeError(
-                    '`decoder.periodPoints` field is required for SMA algorithm and must be more than 0'
-                );
-            }
-            this._decoderUsageCalculator = new GpuUtilizationSma(decoder.periodPoints);
-        } else if (decoder.calculationAlgo === 'last_value') {
-            this._decoderUsageCalculator = new GpuUtilization();
-        } else {
-            throw new TypeError('`decoder.calculationAlgo` is not set or has invalid type');
-        }
-
-        if (decoder.thresholdType === 'rate') {
-            if (!Number.isFinite(decoder.highWatermark) || decoder.highWatermark <= 0 || decoder.highWatermark >= 1) {
-                throw new TypeError(
-                    '`decoder.highWatermark` field is required for threshold = "rate" and must be in range (0,1)'
-                );
-            }
-
-            this._isDecoderOverloaded = this._isGpuUsageOverloadByRateThreshold.bind(
-                null,
-                decoder.highWatermark,
-                this._gpuDecodersUsage
-            );
-        } else if (decoder.thresholdType === 'none') {
-            this._isDecoderOverloaded = () => false;
-        } else {
-            throw new TypeError('`decoder.thresholdType` is not set or has invalid type');
-        }
+        return {usageCalculator, usageOverloadedChecker};
     }
 }
 
