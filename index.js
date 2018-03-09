@@ -52,8 +52,8 @@ class NvidiaGpuMonitor {
 
         this._encoderUsageCalculator = encoderCheckers.usageCalculator;
         this._isEncoderOverloaded = encoderCheckers.usageOverloadedChecker;
-        this._isDecoderOverloaded = decoderCheckers.usageCalculator;
-        this._decoderUsageCalculator = decoderCheckers.usageOverloadedChecker;
+        this._decoderUsageCalculator = decoderCheckers.usageCalculator;
+        this._isDecoderOverloaded = decoderCheckers.usageOverloadedChecker;
 
         this._status = NvidiaGpuMonitor.STATUS_STOPPED;
 

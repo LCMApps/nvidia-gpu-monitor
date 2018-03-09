@@ -389,7 +389,7 @@ describe('NvidiaGpuMonitor::constructor', () => {
 });
 
 describe('NvidiaGpuMonitor methods tests', () => {
-    let monitorConf = {
+    const monitorConf = {
         nvidiaSmiPath: '/usr/bin/nvidia-sma',
         gpuStatPath: './tests/coresStatOutput.txt',
         checkInterval: 15000,
@@ -420,7 +420,7 @@ describe('NvidiaGpuMonitor methods tests', () => {
         nvidiaGpuMonitor = new NvidiaGpuMonitor(monitorConf);
     });
 
-    it('start successfully', async () => {
+    it('start() successfully', async () => {
         const determineCoresStatisticStub = sinon.stub(nvidiaGpuMonitor, '_determineCoresStatistic');
         const parseGpuMetaDataStub = sinon.stub(nvidiaGpuMonitor._nvidiaGpuInfo, 'parseGpuMetaData');
 
@@ -437,7 +437,7 @@ describe('NvidiaGpuMonitor methods tests', () => {
         assert.equal(nvidiaGpuMonitor._monitorScheduler._repeat, monitorConf.checkInterval);
     });
 
-    it('second start call throws error', async () => {
+    it('second start() call throws error', async () => {
         const determineCoresStatisticStub = sinon.stub(nvidiaGpuMonitor, '_determineCoresStatistic');
         const parseGpuMetaDataStub = sinon.stub(nvidiaGpuMonitor._nvidiaGpuInfo, 'parseGpuMetaData');
 
@@ -460,7 +460,7 @@ describe('NvidiaGpuMonitor methods tests', () => {
         }
     });
 
-    it('stop scheduler', async () => {
+    it('stop() destroy scheduler', async () => {
         const determineCoresStatisticStub = sinon.stub(nvidiaGpuMonitor, '_determineCoresStatistic');
         const parseGpuMetaDataStub = sinon.stub(nvidiaGpuMonitor._nvidiaGpuInfo, 'parseGpuMetaData');
 
@@ -475,7 +475,7 @@ describe('NvidiaGpuMonitor methods tests', () => {
         assert.equal(nvidiaGpuMonitor._monitorScheduler._repeat, null);
     });
 
-    it('second stop call throw error', async () => {
+    it('second stop() call throw error', async () => {
         const determineCoresStatisticStub = sinon.stub(nvidiaGpuMonitor, '_determineCoresStatistic');
         const parseGpuMetaDataStub = sinon.stub(nvidiaGpuMonitor._nvidiaGpuInfo, 'parseGpuMetaData');
 
@@ -567,11 +567,13 @@ describe('NvidiaGpuMonitor methods tests', () => {
         assert.strictEqual(result, gpuProductName);
     });
 
-    it('_parseGpuStat() scrape data from nvidia-smi output', async () => {
+    it('_parseGpuStat() scrapes data from nvidia-smi output', async () => {
         const readGpuStatDataStub = sinon.stub(nvidiaGpuMonitor, '_readGpuStatData');
         const getCoreId2NumberHashStub = sinon.stub(nvidiaGpuMonitor._nvidiaGpuInfo, 'getCoreId2NumberHash');
         readGpuStatDataStub.returns(Promise.resolve(coresStatOutput));
         getCoreId2NumberHashStub.returns(coreId2NumberHash);
+
+        nvidiaGpuMonitor._nvidiaGpuInfo._coresId2NumberHash = coreId2NumberHash;
 
         await nvidiaGpuMonitor._parseGpuStat();
 
@@ -620,5 +622,165 @@ describe('NvidiaGpuMonitor methods tests', () => {
         assert.deepEqual(nvidiaGpuMonitor._gpuDecodersUtilization, expectedGpuDecodersUtilization);
     });
 
+    it('_determineCoresStatistic() set overloaded state if GPU is overloaded by memory', async () => {
+        const parseGpuStatStub = sinon.stub(nvidiaGpuMonitor, '_parseGpuStat');
+        const encoderUsageCalculatorStub = sinon.stub(nvidiaGpuMonitor._encoderUsageCalculator, 'getUsage');
+        const decoderUsageCalculatorStub = sinon.stub(nvidiaGpuMonitor._decoderUsageCalculator, 'getUsage');
+        const isMemOverloadedStub = sinon.stub(nvidiaGpuMonitor, '_isMemOverloaded');
+        const isEncoderOverloadedStub = sinon.stub(nvidiaGpuMonitor, '_isEncoderOverloaded');
+        const isDecoderOverloadedStub = sinon.stub(nvidiaGpuMonitor, '_isDecoderOverloaded');
+        isMemOverloadedStub.returns(true);
 
+        await nvidiaGpuMonitor._determineCoresStatistic();
+
+        assert.isTrue(parseGpuStatStub.calledOnce);
+        assert.isTrue(parseGpuStatStub.calledWithExactly());
+        assert.isTrue(encoderUsageCalculatorStub.calledOnce);
+        assert.isTrue(encoderUsageCalculatorStub.calledWithExactly(nvidiaGpuMonitor._gpuEncodersUtilization));
+        assert.isTrue(decoderUsageCalculatorStub.calledOnce);
+        assert.isTrue(decoderUsageCalculatorStub.calledWithExactly(nvidiaGpuMonitor._gpuDecodersUtilization));
+        assert.isTrue(isMemOverloadedStub.calledOnce);
+        assert.isTrue(isMemOverloadedStub.calledWithExactly());
+        assert.isTrue(isEncoderOverloadedStub.notCalled);
+        assert.isTrue(isDecoderOverloadedStub.notCalled);
+        assert.strictEqual(nvidiaGpuMonitor._isOverloaded, true);
+    });
+
+    it('_determineCoresStatistic() set overloaded state if GPU is overloaded by encoder usage', async () => {
+        const parseGpuStatStub = sinon.stub(nvidiaGpuMonitor, '_parseGpuStat');
+        const encoderUsageCalculatorStub = sinon.stub(nvidiaGpuMonitor._encoderUsageCalculator, 'getUsage');
+        const decoderUsageCalculatorStub = sinon.stub(nvidiaGpuMonitor._decoderUsageCalculator, 'getUsage');
+        const isMemOverloadedStub = sinon.stub(nvidiaGpuMonitor, '_isMemOverloaded');
+        const isEncoderOverloadedStub = sinon.stub(nvidiaGpuMonitor, '_isEncoderOverloaded');
+        const isDecoderOverloadedStub = sinon.stub(nvidiaGpuMonitor, '_isDecoderOverloaded');
+        isMemOverloadedStub.returns(false);
+        isEncoderOverloadedStub.returns(true);
+
+        await nvidiaGpuMonitor._determineCoresStatistic();
+
+        assert.isTrue(parseGpuStatStub.calledOnce);
+        assert.isTrue(parseGpuStatStub.calledWithExactly());
+        assert.isTrue(encoderUsageCalculatorStub.calledOnce);
+        assert.isTrue(encoderUsageCalculatorStub.calledWithExactly(nvidiaGpuMonitor._gpuEncodersUtilization));
+        assert.isTrue(decoderUsageCalculatorStub.calledOnce);
+        assert.isTrue(decoderUsageCalculatorStub.calledWithExactly(nvidiaGpuMonitor._gpuDecodersUtilization));
+        assert.isTrue(isMemOverloadedStub.calledOnce);
+        assert.isTrue(isMemOverloadedStub.calledWithExactly());
+        assert.isTrue(isEncoderOverloadedStub.calledOnce);
+        assert.isTrue(isEncoderOverloadedStub.calledWithExactly());
+        assert.isTrue(isDecoderOverloadedStub.notCalled);
+        assert.strictEqual(nvidiaGpuMonitor._isOverloaded, true);
+    });
+
+    it('_determineCoresStatistic() set overloaded state if GPU is overloaded by decoder usage', async () => {
+        const parseGpuStatStub = sinon.stub(nvidiaGpuMonitor, '_parseGpuStat');
+        const encoderUsageCalculatorStub = sinon.stub(nvidiaGpuMonitor._encoderUsageCalculator, 'getUsage');
+        const decoderUsageCalculatorStub = sinon.stub(nvidiaGpuMonitor._decoderUsageCalculator, 'getUsage');
+        const isMemOverloadedStub = sinon.stub(nvidiaGpuMonitor, '_isMemOverloaded');
+        const isEncoderOverloadedStub = sinon.stub(nvidiaGpuMonitor, '_isEncoderOverloaded');
+        const isDecoderOverloadedStub = sinon.stub(nvidiaGpuMonitor, '_isDecoderOverloaded');
+        isMemOverloadedStub.returns(false);
+        isEncoderOverloadedStub.returns(false);
+        isDecoderOverloadedStub.returns(true);
+
+        await nvidiaGpuMonitor._determineCoresStatistic();
+
+        assert.isTrue(parseGpuStatStub.calledOnce);
+        assert.isTrue(parseGpuStatStub.calledWithExactly());
+        assert.isTrue(encoderUsageCalculatorStub.calledOnce);
+        assert.isTrue(encoderUsageCalculatorStub.calledWithExactly(nvidiaGpuMonitor._gpuEncodersUtilization));
+        assert.isTrue(decoderUsageCalculatorStub.calledOnce);
+        assert.isTrue(decoderUsageCalculatorStub.calledWithExactly(nvidiaGpuMonitor._gpuDecodersUtilization));
+        assert.isTrue(isMemOverloadedStub.calledOnce);
+        assert.isTrue(isMemOverloadedStub.calledWithExactly());
+        assert.isTrue(isEncoderOverloadedStub.calledOnce);
+        assert.isTrue(isEncoderOverloadedStub.calledWithExactly());
+        assert.isTrue(isDecoderOverloadedStub.calledOnce);
+        assert.isTrue(isDecoderOverloadedStub.calledWithExactly());
+        assert.strictEqual(nvidiaGpuMonitor._isOverloaded, true);
+    });
+
+    it('_determineCoresStatistic() not set overloaded state if GPU is not overloaded', async () => {
+        const parseGpuStatStub = sinon.stub(nvidiaGpuMonitor, '_parseGpuStat');
+        const encoderUsageCalculatorStub = sinon.stub(nvidiaGpuMonitor._encoderUsageCalculator, 'getUsage');
+        const decoderUsageCalculatorStub = sinon.stub(nvidiaGpuMonitor._decoderUsageCalculator, 'getUsage');
+        const isMemOverloadedStub = sinon.stub(nvidiaGpuMonitor, '_isMemOverloaded');
+        const isEncoderOverloadedStub = sinon.stub(nvidiaGpuMonitor, '_isEncoderOverloaded');
+        const isDecoderOverloadedStub = sinon.stub(nvidiaGpuMonitor, '_isDecoderOverloaded');
+        isMemOverloadedStub.returns(false);
+        isEncoderOverloadedStub.returns(false);
+        isDecoderOverloadedStub.returns(false);
+
+        await nvidiaGpuMonitor._determineCoresStatistic();
+
+        assert.isTrue(parseGpuStatStub.calledOnce);
+        assert.isTrue(parseGpuStatStub.calledWithExactly());
+        assert.isTrue(encoderUsageCalculatorStub.calledOnce);
+        assert.isTrue(encoderUsageCalculatorStub.calledWithExactly(nvidiaGpuMonitor._gpuEncodersUtilization));
+        assert.isTrue(decoderUsageCalculatorStub.calledOnce);
+        assert.isTrue(decoderUsageCalculatorStub.calledWithExactly(nvidiaGpuMonitor._gpuDecodersUtilization));
+        assert.isTrue(isMemOverloadedStub.calledOnce);
+        assert.isTrue(isMemOverloadedStub.calledWithExactly());
+        assert.isTrue(isEncoderOverloadedStub.calledOnce);
+        assert.isTrue(isEncoderOverloadedStub.calledWithExactly());
+        assert.isTrue(isDecoderOverloadedStub.calledOnce);
+        assert.isTrue(isDecoderOverloadedStub.calledWithExactly());
+        assert.strictEqual(nvidiaGpuMonitor._isOverloaded, false);
+    });
+
+    it('_isMemOverloadedByFixedThreshold() return false if enough free mem on each GPU core', () => {
+        const minFreeMem = 1;
+        const isMemOverloadedByIncorrectDatadSpy = sinon.spy(nvidiaGpuMonitor, '_isMemOverloadedByIncorrectData');
+
+        const result = nvidiaGpuMonitor._isMemOverloadedByFixedThreshold(minFreeMem, gpuCoresMem);
+
+        assert.strictEqual(isMemOverloadedByIncorrectDatadSpy.callCount, Object.keys(gpuCoresMem).length);
+        assert.strictEqual(result, false);
+    });
+
+    it('_isMemOverloadedByFixedThreshold() return true if not enough free mem on some GPU core', () => {
+        const minFreeMem = 6;
+        const result = nvidiaGpuMonitor._isMemOverloadedByFixedThreshold(minFreeMem, gpuCoresMem);
+
+        assert.strictEqual(result, true);
+    });
+
+    it('_isMemOverloadedByRateThreshold() return false if enough free mem on each GPU core', () => {
+        const highWatermark = 0.9;
+        const isMemOverloadedByIncorrectDatadSpy = sinon.spy(nvidiaGpuMonitor, '_isMemOverloadedByIncorrectData');
+
+        const result = nvidiaGpuMonitor._isMemOverloadedByRateThreshold(highWatermark, gpuCoresMem);
+
+        assert.strictEqual(isMemOverloadedByIncorrectDatadSpy.callCount, Object.keys(gpuCoresMem).length);
+        assert.strictEqual(result, false);
+    });
+
+    it('_isMemOverloadedByRateThreshold() return true if not enough free mem on some GPU core', () => {
+        const highWatermark = 0.4;
+        const result = nvidiaGpuMonitor._isMemOverloadedByRateThreshold(highWatermark, gpuCoresMem);
+
+        assert.strictEqual(result, true);
+    });
+
+    it('_isGpuUsageOverloadByRateThreshold() return false if enough free mem on each GPU core', () => {
+        const highWatermark = 0.9;
+        const gpuUsage = {
+            '00000000:06:00.0': 60,
+            '00000000:07:00.0': 75
+        };
+        const result = nvidiaGpuMonitor._isGpuUsageOverloadByRateThreshold(highWatermark, gpuUsage);
+
+        assert.strictEqual(result, false);
+    });
+
+    it('_isGpuUsageOverloadByRateThreshold() return true if not enough free mem on some GPU core', () => {
+        const highWatermark = 0.4;
+        const gpuUsage = {
+            '00000000:06:00.0': 60,
+            '00000000:07:00.0': 75
+        };
+        const result = nvidiaGpuMonitor._isGpuUsageOverloadByRateThreshold(highWatermark, gpuUsage);
+
+        assert.strictEqual(result, true);
+    });
 });
