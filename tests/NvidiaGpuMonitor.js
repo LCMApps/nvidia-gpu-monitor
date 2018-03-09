@@ -494,7 +494,7 @@ describe('NvidiaGpuMonitor methods tests', () => {
         assert.equal(nvidiaGpuMonitor._monitorScheduler._repeat, null);
     });
 
-    it('getGpuStat() returns array with cores statistic', () => {
+    it('getGpuStatistic() returns array with cores statistic', () => {
         const expectedCoreStat1 = {
             core: coreId2NumberHash['00000000:06:00.0'],
             mem: {
@@ -525,7 +525,7 @@ describe('NvidiaGpuMonitor methods tests', () => {
 
         const getCoreId2NumberHashSpy = sinon.spy(nvidiaGpuMonitor._nvidiaGpuInfo, 'getCoreId2NumberHash');
 
-        const result = nvidiaGpuMonitor.getGpuStat();
+        const result = nvidiaGpuMonitor.getGpuStatistic();
 
         assert.isTrue(getCoreId2NumberHashSpy.calledOnce);
         assert.isTrue(getCoreId2NumberHashSpy.calledWithExactly());

@@ -93,7 +93,7 @@ class NvidiaGpuMonitor {
     /**
      * @returns {Array}
      */
-    getGpuStat() {
+    getGpuStatistic() {
         if (this._status === NvidiaGpuMonitor.STATUS_STOPPED) {
             throw new Error('NvidiaGpuMonitor service is not started');
         }
