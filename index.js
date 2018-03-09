@@ -117,21 +117,6 @@ class NvidiaGpuMonitor {
     }
 
     /**
-     * @returns {Object}
-     */
-    getGpuMetaInfo() {
-        if (this._status === NvidiaGpuMonitor.STATUS_STOPPED) {
-            throw new Error('NvidiaGpuMonitor service is not started');
-        }
-
-        return {
-            productName: this._nvidiaGpuInfo.getProductName(),
-            driverVersion: this._nvidiaGpuInfo.getDriverVersion(),
-            coresList: this._nvidiaGpuInfo.getCoresNumberList()
-        };
-    }
-
-    /**
      * @returns {boolean}
      */
     isOverloaded() {
@@ -230,7 +215,6 @@ class NvidiaGpuMonitor {
             gpuStat = await this._readGpuStatData();
         } catch (err) {
             wasError = true;
-            return;
         }
 
         // Set default values
@@ -249,23 +233,23 @@ class NvidiaGpuMonitor {
 
         let matchResult;
         while ((matchResult = STAT_GRAB_PATTERN.exec(gpuStat)) !== null) {
-            if (matchResult[1] !== undefined) {
+            if (matchResult[1] !== undefined && this._nvidiaGpuInfo.getCoreNumberById(matchResult[1]) !== undefined) {
                 const totalMem = Number.parseInt(matchResult[2]);
                 const freeMem = Number.parseInt(matchResult[3]);
                 const encoderUtilization = Number.parseInt(matchResult[4]);
                 const decoderUtilization = Number.parseInt(matchResult[5]);
 
                 if (Number.isInteger(totalMem)) {
-                    this._gpuCoresMem[matchResult[1]].mem.total = totalMem;
+                    this._gpuCoresMem[matchResult[1]].total = totalMem;
                 }
                 if (Number.isInteger(freeMem)) {
-                    this._gpuCoresMem[matchResult[1]].mem.free = freeMem;
+                    this._gpuCoresMem[matchResult[1]].free = freeMem;
                 }
                 if (Number.isInteger(encoderUtilization)) {
-                    this._gpuCoresMem[matchResult[1]].encoder = encoderUtilization;
+                    this._gpuEncodersUtilization[matchResult[1]] = encoderUtilization;
                 }
                 if (Number.isInteger(totalMem)) {
-                    this._gpuCoresMem[matchResult[1]].decoder = decoderUtilization;
+                    this._gpuDecodersUtilization[matchResult[1]] = decoderUtilization;
                 }
             }
         }

@@ -4,11 +4,11 @@ const fs = require('fs');
 const sinon = require('sinon');
 const assert = require('chai').assert;
 const dataDriven = require('data-driven');
+const deepFreeze = require('deep-freeze');
 
 const NvidiaGpuMonitor = require('../index');
 
-const coresMetaInfo = fs.readFileSync('./tests/coresMetaInfo.txt', 'utf8');
-const coresStat = fs.readFileSync('./tests/coresStat.txt', 'utf8');
+const coresStatOutput = fs.readFileSync('./tests/coresStat.txt', 'utf8');
 
 /**
  * Returns object with passed to function variable itself and its type.
@@ -50,11 +50,11 @@ const testParams = {
     ]
 };
 
-const coreId2NumberHash = {
+const coreId2NumberHash = deepFreeze({
     '00000000:06:00.0': '0',
     '00000000:07:00.0': '1'
-};
-const gpuCoresMem = {
+});
+const gpuCoresMem = deepFreeze({
     '00000000:06:00.0': {
         total: 10,
         free: 8
@@ -63,17 +63,17 @@ const gpuCoresMem = {
         total: 10,
         free: 5
     }
-};
-const gpuEncodersUsage = {
+});
+const gpuEncodersUtilization = deepFreeze({
     '00000000:06:00.0': 1,
     '00000000:07:00.0': 6
-};
-
-const gpuDecodersUsage = {
+});
+const gpuDecodersUtilization = deepFreeze({
     '00000000:06:00.0': 2,
     '00000000:07:00.0': 6
-};
-
+});
+const gpuProductName = 'Tesla M60';
+const gpuDriverVersion = '384.111';
 
 describe('NvidiaGpuMonitor::constructor', () => {
     dataDriven(testParams.notAString, function () {
@@ -391,7 +391,7 @@ describe('NvidiaGpuMonitor::constructor', () => {
 describe('NvidiaGpuMonitor methods tests', () => {
     let monitorConf = {
         nvidiaSmiPath: '/usr/bin/nvidia-sma',
-        gpuStatPath: './tests/coresStat.txt',
+        gpuStatPath: './tests/coresStatOutput.txt',
         checkInterval: 15000,
         mem: {
             thresholdType: 'none',
@@ -494,15 +494,15 @@ describe('NvidiaGpuMonitor methods tests', () => {
         assert.equal(nvidiaGpuMonitor._monitorScheduler._repeat, null);
     });
 
-    it('getGpuStat() returns array with cores statistic', async () => {
+    it('getGpuStat() returns array with cores statistic', () => {
         const expectedCoreStat1 = {
             core: coreId2NumberHash['00000000:06:00.0'],
             mem: {
                 free: gpuCoresMem['00000000:06:00.0'].free
             },
             usage: {
-                enc: gpuEncodersUsage['00000000:06:00.0'],
-                dec: gpuDecodersUsage['00000000:06:00.0'],
+                enc: gpuEncodersUtilization['00000000:06:00.0'],
+                dec: gpuDecodersUtilization['00000000:06:00.0'],
             }
         };
 
@@ -512,15 +512,15 @@ describe('NvidiaGpuMonitor methods tests', () => {
                 free: gpuCoresMem['00000000:07:00.0'].free
             },
             usage: {
-                enc: gpuEncodersUsage['00000000:07:00.0'],
-                dec: gpuDecodersUsage['00000000:07:00.0'],
+                enc: gpuEncodersUtilization['00000000:07:00.0'],
+                dec: gpuDecodersUtilization['00000000:07:00.0'],
             }
         };
 
         nvidiaGpuMonitor._status = NvidiaGpuMonitor.STATUS_STARTED;
         nvidiaGpuMonitor._gpuCoresMem = gpuCoresMem;
-        nvidiaGpuMonitor._gpuEncodersUsage = gpuEncodersUsage;
-        nvidiaGpuMonitor._gpuDecodersUsage = gpuDecodersUsage;
+        nvidiaGpuMonitor._gpuEncodersUsage = gpuEncodersUtilization;
+        nvidiaGpuMonitor._gpuDecodersUsage = gpuDecodersUtilization;
         nvidiaGpuMonitor._nvidiaGpuInfo._coresId2NumberHash = coreId2NumberHash;
 
         const getCoreId2NumberHashSpy = sinon.spy(nvidiaGpuMonitor._nvidiaGpuInfo, 'getCoreId2NumberHash');
@@ -532,20 +532,92 @@ describe('NvidiaGpuMonitor methods tests', () => {
         assert.isArray(result);
         assert.lengthOf(result, 2);
         assert.includeDeepMembers(result, [expectedCoreStat1, expectedCoreStat2]);
-        assert.hasAllKeys(result[0], ['core', 'mem', 'usage']);
-        assert.nestedProperty(result[0], 'mem.free');
-        assert.nestedProperty(result[0], 'usage.enc');
-        assert.nestedProperty(result[0], 'usage.dec');
-        assert.isNumber(result[0].mem.free);
-        assert.isNumber(result[0].usage.enc);
-        assert.isNumber(result[0].usage.dec);
-        assert.hasAllKeys(result[1], ['core', 'mem', 'usage']);
-        assert.nestedProperty(result[1], 'mem.free');
-        assert.nestedProperty(result[1], 'usage.enc');
-        assert.nestedProperty(result[1], 'usage.dec');
-        assert.isNumber(result[1].mem.free);
-        assert.isNumber(result[1].usage.enc);
-        assert.isNumber(result[1].usage.dec);
+        for (let index = 0; index < Object.keys(coreId2NumberHash).length; index++) {
+            assert.hasAllKeys(result[index], ['core', 'mem', 'usage']);
+            assert.nestedProperty(result[index], 'mem.free');
+            assert.nestedProperty(result[index], 'usage.enc');
+            assert.nestedProperty(result[index], 'usage.dec');
+            assert.isNumber(result[index].mem.free);
+            assert.isNumber(result[index].usage.enc);
+            assert.isNumber(result[index].usage.dec);
+        }
+    });
+
+    it('getGpuDriverVersion() returns GPU driver version', () => {
+        nvidiaGpuMonitor._status = NvidiaGpuMonitor.STATUS_STARTED;
+        nvidiaGpuMonitor._nvidiaGpuInfo._driverVersion = gpuDriverVersion;
+        const getDriverVersionSpy = sinon.spy(nvidiaGpuMonitor._nvidiaGpuInfo, 'getDriverVersion');
+
+        const result = nvidiaGpuMonitor.getGpuDriverVersion();
+
+        assert.isTrue(getDriverVersionSpy.calledOnce);
+        assert.isTrue(getDriverVersionSpy.calledWithExactly());
+        assert.strictEqual(result, gpuDriverVersion);
+    });
+
+    it('getGpuProductName() returns GPU driver version', () => {
+        nvidiaGpuMonitor._status = NvidiaGpuMonitor.STATUS_STARTED;
+        nvidiaGpuMonitor._nvidiaGpuInfo._productName = gpuProductName;
+        const getProductNameSpy = sinon.spy(nvidiaGpuMonitor._nvidiaGpuInfo, 'getProductName');
+
+        const result = nvidiaGpuMonitor.getGpuProductName();
+
+        assert.isTrue(getProductNameSpy.calledOnce);
+        assert.isTrue(getProductNameSpy.calledWithExactly());
+        assert.strictEqual(result, gpuProductName);
+    });
+
+    it('_parseGpuStat() scrape data from nvidia-smi output', async () => {
+        const readGpuStatDataStub = sinon.stub(nvidiaGpuMonitor, '_readGpuStatData');
+        const getCoreId2NumberHashStub = sinon.stub(nvidiaGpuMonitor._nvidiaGpuInfo, 'getCoreId2NumberHash');
+        readGpuStatDataStub.returns(Promise.resolve(coresStatOutput));
+        getCoreId2NumberHashStub.returns(coreId2NumberHash);
+
+        await nvidiaGpuMonitor._parseGpuStat();
+
+        assert.isTrue(readGpuStatDataStub.calledOnce);
+        assert.isTrue(readGpuStatDataStub.calledWithExactly());
+        assert.isTrue(getCoreId2NumberHashStub.calledOnce);
+        assert.isTrue(getCoreId2NumberHashStub.calledWithExactly());
+        assert.deepEqual(nvidiaGpuMonitor._gpuCoresMem, gpuCoresMem);
+        assert.deepEqual(nvidiaGpuMonitor._gpuEncodersUtilization, gpuEncodersUtilization);
+        assert.deepEqual(nvidiaGpuMonitor._gpuDecodersUtilization, gpuDecodersUtilization);
+    });
+
+    it('on error in _parseGpuStat() receive default values for mem and utilization', async () => {
+        const expectedGpuCoresMem = deepFreeze({
+            '00000000:06:00.0': {
+                total: -1,
+                free: -1
+            },
+            '00000000:07:00.0': {
+                total: -1,
+                free: -1
+            }
+        });
+        const expectedGpuEncodersUtilization = deepFreeze({
+            '00000000:06:00.0': 100,
+            '00000000:07:00.0': 100
+        });
+        const expectedGpuDecodersUtilization = deepFreeze({
+            '00000000:06:00.0': 100,
+            '00000000:07:00.0': 100
+        });
+
+        const readGpuStatDataStub = sinon.stub(nvidiaGpuMonitor, '_readGpuStatData');
+        const getCoreId2NumberHashStub = sinon.stub(nvidiaGpuMonitor._nvidiaGpuInfo, 'getCoreId2NumberHash');
+        readGpuStatDataStub.returns(Promise.reject(new Error('Some error')));
+        getCoreId2NumberHashStub.returns(coreId2NumberHash);
+
+        await nvidiaGpuMonitor._parseGpuStat();
+
+        assert.isTrue(readGpuStatDataStub.calledOnce);
+        assert.isTrue(readGpuStatDataStub.calledWithExactly());
+        assert.isTrue(getCoreId2NumberHashStub.calledOnce);
+        assert.isTrue(getCoreId2NumberHashStub.calledWithExactly());
+        assert.deepEqual(nvidiaGpuMonitor._gpuCoresMem, expectedGpuCoresMem);
+        assert.deepEqual(nvidiaGpuMonitor._gpuEncodersUtilization, expectedGpuEncodersUtilization);
+        assert.deepEqual(nvidiaGpuMonitor._gpuDecodersUtilization, expectedGpuDecodersUtilization);
     });
 
 
