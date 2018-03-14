@@ -11,7 +11,7 @@ const execAsync = promisify(exec);
 
 const STAT_GRAB_PATTERN = new RegExp(
     'GPU (\\d+:\\d+:\\d+.\\d+)[\\s\\S]+?'
-    + 'FB Memory Usage\\s+Total\\s+: (\\d+) MiB\\s+Used\\s+: \\d+ MiB\\s+Free\\s+: (\\d+) MiB[\\s\\S]+?'
+    + 'FB Memory Usage\\s+Total\\s+:\\s*(\\d+) MiB\\s+Used\\s+:\\s*\\d+ MiB\\s+Free\\s+:\\s*(\\d+) MiB[\\s\\S]+?'
     + 'Encoder\\s*:\\s*(\\d+)\\s*%[\\s\\S]+?'
     + 'Decoder\\s*:\\s*(\\d+)\\s*%',
     'g'
@@ -58,16 +58,18 @@ class NvidiaGpuMonitor {
         this._status = NvidiaGpuMonitor.STATUS_STOPPED;
 
         this._nvidiaGpuInfo = new NvidiaGpuInfo(nvidiaSmiPath);
+        this._gpuPciIdList = [];
         this._gpuCoresMem = {};
         this._gpuEncodersUsage = {};
         this._gpuDecodersUsage = {};
-        this._gpuEncodersUtilization = {};
-        this._gpuDecodersUtilization = {};
         this._isOverloaded = true;
 
         this._monitorScheduler = undefined;
     }
 
+    /**
+     * @throws {Error}
+     */
     async start() {
         if (this._status === NvidiaGpuMonitor.STATUS_STARTED) {
             throw new Error('NvidiaGpuMonitor service is already started');
@@ -80,6 +82,9 @@ class NvidiaGpuMonitor {
         this._status = NvidiaGpuMonitor.STATUS_STARTED;
     }
 
+    /**
+     * @throws {Error}
+     */
     stop() {
         if (this._status === NvidiaGpuMonitor.STATUS_STOPPED) {
             throw new Error('NvidiaGpuMonitor service is not started');
@@ -92,6 +97,7 @@ class NvidiaGpuMonitor {
 
     /**
      * @returns {Array}
+     * @throws {Error}
      */
     getGpuStatistic() {
         if (this._status === NvidiaGpuMonitor.STATUS_STOPPED) {
@@ -100,15 +106,15 @@ class NvidiaGpuMonitor {
 
         const gpuStat = [];
 
-        for (const coreId in this._nvidiaGpuInfo.getCoreId2NumberHash()) {
+        for (const pciId of this._gpuPciIdList) {
             gpuStat.push({
-                core: this._nvidiaGpuInfo.getCoreNumberById(coreId),
+                core: this._nvidiaGpuInfo.getCoreNumber(pciId),
                 mem: {
-                    free: this._gpuCoresMem[coreId].free
+                    free: this._gpuCoresMem[pciId].free
                 },
                 usage: {
-                    enc: this._gpuEncodersUsage[coreId],
-                    dec: this._gpuDecodersUsage[coreId]
+                    enc: this._gpuEncodersUsage[pciId],
+                    dec: this._gpuDecodersUsage[pciId]
                 }
             });
         }
@@ -118,6 +124,7 @@ class NvidiaGpuMonitor {
 
     /**
      * @returns {boolean}
+     * @throws {Error}
      */
     isOverloaded() {
         if (this._status === NvidiaGpuMonitor.STATUS_STOPPED) {
@@ -129,6 +136,7 @@ class NvidiaGpuMonitor {
 
     /**
      * @returns {string}
+     * @throws {Error}
      */
     getGpuDriverVersion() {
         if (this._status === NvidiaGpuMonitor.STATUS_STOPPED) {
@@ -139,18 +147,72 @@ class NvidiaGpuMonitor {
     }
 
     /**
-     * @returns {string}
+     * @returns {Object}
+     * @throws {Error}
      */
-    getGpuProductName() {
+    getGpuProductsName() {
         if (this._status === NvidiaGpuMonitor.STATUS_STOPPED) {
             throw new Error('NvidiaGpuMonitor service is not started');
         }
 
-        return this._nvidiaGpuInfo.getProductName();
+        return this._nvidiaGpuInfo.getProductsName();
     }
 
     /**
+     * @example
+     * // returns
+     *   Timestamp                           : Tue Feb 20 15:26:54 2018
+     *   Driver Version                      : 384.11
+     *
+     *   Attached GPUs                       : 4
+     *   GPU 00000000:06:00.0
+     *   FB Memory Usage
+     *   Total                       : 8123 MiB
+     *   Used                        : 149 MiB
+     *   Free                        : 7974 MiB
+     *   BAR1 Memory Usage
+     *   Total                       : 256 MiB
+     *   Used                        : 2 MiB
+     *   Free                        : 254 MiB
+     *   Utilization
+     *   Gpu                         : 13 %
+     *   Memory                      : 10 %
+     *   Encoder                     : 42 %
+     *   Decoder                     : 24 %
+     *   GPU Utilization Samples
+     *   Duration                    : 18446744073709.22 sec
+     *   Number of Samples           : 99
+     *   Max                         : 15 %
+     *   Min                         : 0 %
+     *   Avg                         : 0 %
+     *   Memory Utilization Samples
+     *   Duration                    : 18446744073709.22 sec
+     *   Number of Samples           : 99
+     *   Max                         : 10 %
+     *   Min                         : 0 %
+     *   Avg                         : 0 %
+     *   ENC Utilization Samples
+     *   Duration                    : 18446744073709.22 sec
+     *   Number of Samples           : 99
+     *   Max                         : 42 %
+     *   Min                         : 0 %
+     *   Avg                         : 0 %
+     *   DEC Utilization Samples
+     *   Duration                    : 18446744073709.22 sec
+     *   Number of Samples           : 99
+     *   Max                         : 24 %
+     *   Min                         : 0 %
+     *   Avg                         : 0 %
+     *   Processes
+     *   Process ID                  : 74920
+     *   Type                    : C
+     *   Name                    : ffmpeg
+     *   Used GPU Memory         : 138 MiB
+     *
+     * this._readGpuStatData()
+     *
      * @returns {string}
+     * @throws {Error}
      */
     async _readGpuStatData() {
         const {stdout} = await execAsync(`${this._nvidiaSmiPath} -q -d UTILIZATION,MEMORY`);
@@ -158,54 +220,8 @@ class NvidiaGpuMonitor {
         return stdout;
     }
 
-    /*
-    Timestamp                           : Tue Feb 20 15:26:54 2018
-    Driver Version                      : 384.111
-
-    Attached GPUs                       : 4
-    GPU 00000000:06:00.0
-        FB Memory Usage
-            Total                       : 8123 MiB
-            Used                        : 149 MiB
-            Free                        : 7974 MiB
-        BAR1 Memory Usage
-            Total                       : 256 MiB
-            Used                        : 2 MiB
-            Free                        : 254 MiB
-        Utilization
-            Gpu                         : 13 %
-            Memory                      : 10 %
-            Encoder                     : 42 %
-            Decoder                     : 24 %
-        GPU Utilization Samples
-            Duration                    : 18446744073709.22 sec
-            Number of Samples           : 99
-            Max                         : 15 %
-            Min                         : 0 %
-            Avg                         : 0 %
-        Memory Utilization Samples
-            Duration                    : 18446744073709.22 sec
-            Number of Samples           : 99
-            Max                         : 10 %
-            Min                         : 0 %
-            Avg                         : 0 %
-        ENC Utilization Samples
-            Duration                    : 18446744073709.22 sec
-            Number of Samples           : 99
-            Max                         : 42 %
-            Min                         : 0 %
-            Avg                         : 0 %
-        DEC Utilization Samples
-            Duration                    : 18446744073709.22 sec
-            Number of Samples           : 99
-            Max                         : 24 %
-            Min                         : 0 %
-            Avg                         : 0 %
-        Processes
-            Process ID                  : 74920
-                Type                    : C
-                Name                    : ffmpeg
-                Used GPU Memory         : 138 MiB
+    /**
+     * @throws {Error}
      */
     async _parseGpuStat() {
         let gpuStat;
@@ -217,50 +233,62 @@ class NvidiaGpuMonitor {
             wasError = true;
         }
 
-        // Set default values
-        for (const coreId in this._nvidiaGpuInfo.getCoreId2NumberHash()) {
-            this._gpuCoresMem[coreId] = {
-                total: -1,
-                free: -1
-            };
-            this._gpuEncodersUtilization[coreId] = 100;
-            this._gpuDecodersUtilization[coreId] = 100;
-        }
+        const gpuPciIdList = [];
+        const gpuCoresMem = {};
+        const gpuEncodersUtilization = {};
+        const gpuDecodersUtilization = {};
 
-        if (wasError) {
-            return;
-        }
+        if (!wasError) {
+            let matchResult;
+            while ((matchResult = STAT_GRAB_PATTERN.exec(gpuStat)) !== null) {
+                if (matchResult[1] !== undefined && this._nvidiaGpuInfo.getCoreNumber(matchResult[1]) !== undefined) {
+                    const pciId = matchResult[1];
+                    const totalMem = Number.parseInt(matchResult[2]);
+                    const freeMem = Number.parseInt(matchResult[3]);
+                    const encoderUtilization = Number.parseInt(matchResult[4]);
+                    const decoderUtilization = Number.parseInt(matchResult[5]);
 
-        let matchResult;
-        while ((matchResult = STAT_GRAB_PATTERN.exec(gpuStat)) !== null) {
-            if (matchResult[1] !== undefined && this._nvidiaGpuInfo.getCoreNumberById(matchResult[1]) !== undefined) {
-                const totalMem = Number.parseInt(matchResult[2]);
-                const freeMem = Number.parseInt(matchResult[3]);
-                const encoderUtilization = Number.parseInt(matchResult[4]);
-                const decoderUtilization = Number.parseInt(matchResult[5]);
-
-                if (Number.isInteger(totalMem)) {
-                    this._gpuCoresMem[matchResult[1]].total = totalMem;
-                }
-                if (Number.isInteger(freeMem)) {
-                    this._gpuCoresMem[matchResult[1]].free = freeMem;
-                }
-                if (Number.isInteger(encoderUtilization)) {
-                    this._gpuEncodersUtilization[matchResult[1]] = encoderUtilization;
-                }
-                if (Number.isInteger(totalMem)) {
-                    this._gpuDecodersUtilization[matchResult[1]] = decoderUtilization;
+                    if (
+                        Number.isInteger(totalMem) && Number.isInteger(freeMem) && Number.isInteger(encoderUtilization)
+                        && Number.isInteger(decoderUtilization)
+                    ) {
+                        gpuPciIdList.push(pciId);
+                        gpuCoresMem[pciId] = {};
+                        gpuCoresMem[pciId].total = totalMem;
+                        gpuCoresMem[pciId].free = freeMem;
+                        gpuEncodersUtilization[pciId] = encoderUtilization;
+                        gpuDecodersUtilization[pciId] = decoderUtilization;
+                    }
                 }
             }
         }
+
+        return {
+            gpuPciIdList,
+            gpuCoresMem,
+            gpuEncodersUtilization,
+            gpuDecodersUtilization
+        };
     }
 
+    /**
+     * @throws {Error}
+     */
     async _determineCoresStatistic() {
-        await this._parseGpuStat();
+        const {
+            gpuPciIdList,
+            gpuCoresMem,
+            gpuEncodersUtilization,
+            gpuDecodersUtilization
+        } = await this._parseGpuStat();
 
-        this._gpuEncodersUsage = this._encoderUsageCalculator.getUsage(this._gpuEncodersUtilization);
-        this._gpuDecodersUsage = this._decoderUsageCalculator.getUsage(this._gpuDecodersUtilization);
-        this._isOverloaded = this._isMemOverloaded() || this._isEncoderOverloaded() || this._isDecoderOverloaded();
+        this._gpuPciIdList = gpuPciIdList;
+        this._gpuCoresMem = gpuCoresMem;
+        this._gpuEncodersUsage = this._encoderUsageCalculator.getUsage(gpuEncodersUtilization);
+        this._gpuDecodersUsage = this._decoderUsageCalculator.getUsage(gpuDecodersUtilization);
+        this._isOverloaded = this._isMemOverloaded(gpuCoresMem)
+            || this._isEncoderOverloaded(gpuEncodersUtilization)
+            || this._isDecoderOverloaded(gpuDecodersUtilization);
     }
 
     /**
@@ -278,8 +306,8 @@ class NvidiaGpuMonitor {
      * @returns {boolean}
      */
     _isMemOverloadedByFixedThreshold(minFree, coresMemCollection) {
-        for (const coreId in coresMemCollection) {
-            const {free, total} = coresMemCollection[coreId];
+        for (const pciId in coresMemCollection) {
+            const {free, total} = coresMemCollection[pciId];
             if (this._isMemOverloadedByIncorrectData(free, total) || free < minFree) {
                 return true;
             }
@@ -294,8 +322,8 @@ class NvidiaGpuMonitor {
      * @returns {boolean}
      */
     _isMemOverloadedByRateThreshold(highWatermark, coresMemCollection) {
-        for (const coreId in coresMemCollection) {
-            const {free, total} = coresMemCollection[coreId];
+        for (const pciId in coresMemCollection) {
+            const {free, total} = coresMemCollection[pciId];
             if (this._isMemOverloadedByIncorrectData(free, total) || ((total - free) / total) > highWatermark) {
                 return true;
             }
@@ -311,8 +339,8 @@ class NvidiaGpuMonitor {
      * @private
      */
     _isGpuUsageOverloadByRateThreshold(highWatermark, coresUsageCollection) {
-        for (const coreId in coresUsageCollection) {
-            if ((highWatermark * 100) < coresUsageCollection[coreId]) {
+        for (const pciId in coresUsageCollection) {
+            if ((highWatermark * 100) < coresUsageCollection[pciId]) {
                 return true;
             }
         }
@@ -334,7 +362,7 @@ class NvidiaGpuMonitor {
                 throw new TypeError('"mem.minFree" field is required for threshold = fixed and must be more than 0');
             }
 
-            this._isMemOverloaded = this._isMemOverloadedByFixedThreshold.bind(this, mem.minFree, this._gpuCoresMem);
+            this._isMemOverloaded = this._isMemOverloadedByFixedThreshold.bind(this, mem.minFree);
         } else if (mem.thresholdType === 'rate') {
             if (!Number.isFinite(mem.highWatermark) || mem.highWatermark <= 0 || mem.highWatermark >= 1) {
                 throw new TypeError(
@@ -342,11 +370,7 @@ class NvidiaGpuMonitor {
                 );
             }
 
-            this._isMemOverloaded = this._isMemOverloadedByRateThreshold.bind(
-                this,
-                mem.highWatermark,
-                this._gpuCoresMem
-            );
+            this._isMemOverloaded = this._isMemOverloadedByRateThreshold.bind(this, mem.highWatermark);
         } else if (mem.thresholdType === 'none') {
             this._isMemOverloaded = this._isMemOverloadedByIncorrectData;
         } else {
@@ -370,10 +394,10 @@ class NvidiaGpuMonitor {
         }
 
         if (config.calculationAlgo === 'sma') {
-            if (!Number.isSafeInteger(config.periodPoints) || config.periodPoints < 1) {
+            if (!Number.isSafeInteger(config.periodPoints) || config.periodPoints <= 1) {
                 throw new TypeError(
                     `"${utilizationParameter}.periodPoints" field is required for SMA algorithm`
-                    + ' and must be not less than 0'
+                    + ' and must be more than 1'
                 );
             }
             usageCalculator = new GpuUtilizationSma(config.periodPoints);
@@ -393,8 +417,7 @@ class NvidiaGpuMonitor {
 
             usageOverloadedChecker = this._isGpuUsageOverloadByRateThreshold.bind(
                 null,
-                config.highWatermark,
-                this._gpuEncodersUsage
+                config.highWatermark
             );
         } else if (config.thresholdType === 'none') {
             usageOverloadedChecker = () => false;

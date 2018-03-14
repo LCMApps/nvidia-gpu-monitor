@@ -8,10 +8,12 @@ const gpuUtilization = {
     '00000000:07:00.0': 25
 };
 const gpuUtilization2 = {
-    '00000000:06:00.0': 70,
-    '00000000:07:00.0': 16
+    '00000000:06:00.0': 50,
+    '00000000:07:00.0': 33
 };
 const periodPoints = 3;
+
+const NUMBER_PRECISION_DELTA = 0.0000001;
 
 describe('GpuUtilizationSma methods tests', () => {
     it('getUsage() returns usage 100 if a points count for SMA lower than a periodPoints from the constructor', () => {
@@ -26,8 +28,8 @@ describe('GpuUtilizationSma methods tests', () => {
 
     it('getUsage() returns correctly calculated usage', () => {
         const expectedGpuUsage = {
-            '00000000:06:00.0': (10 + 10 + 70) / 3,
-            '00000000:07:00.0': (25 + 25 + 16) / 3
+            '00000000:06:00.0': (10 + 10 + 50) / 3,
+            '00000000:07:00.0': (25 + 25 + 33) / 3
         };
         const gpuUtilizationSma = new GpuUtilizationSma(periodPoints);
 
@@ -37,6 +39,20 @@ describe('GpuUtilizationSma methods tests', () => {
         const utilizationSma = gpuUtilizationSma.getUsage(gpuUtilization2);
 
         assert.hasAllKeys(utilizationSma, Object.keys(gpuUtilization));
+        for (const coreId in gpuUtilization) {
+            assert.closeTo(utilizationSma[coreId], expectedGpuUsage[coreId], NUMBER_PRECISION_DELTA);
+        }
+    });
+
+    it('getUsage() returns empty collection of utilization', () => {
+        const expectedGpuUsage = {};
+        const gpuUtilizationSma = new GpuUtilizationSma(periodPoints);
+
+        gpuUtilizationSma.getUsage(gpuUtilization);
+        gpuUtilizationSma.getUsage(gpuUtilization);
+        gpuUtilizationSma.getUsage(gpuUtilization);
+        const utilizationSma = gpuUtilizationSma.getUsage({});
+
         assert.deepEqual(utilizationSma, expectedGpuUsage);
     });
 });

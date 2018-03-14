@@ -6,7 +6,7 @@ const assert = require('chai').assert;
 
 const NvidiaGpuInfo = require('../lib/NvidiaGpuInfo');
 
-const coresMetaInfoOutput = fs.readFileSync('./tests/coresMetaInfo.txt', 'utf8');
+const coresMetaInfoOutput = fs.readFileSync('./tests/gpuMetaInfo.txt', 'utf8');
 
 describe('NvidiaGpuInfo methods tests', () => {
     let nvidiaSmiPath = '/usr/bin/nvidia-sma';
@@ -17,9 +17,12 @@ describe('NvidiaGpuInfo methods tests', () => {
     });
 
     it('parseGpuMetaData() scrapes info about GPU from nvidia-smi output', async () => {
-        const expectedProductName = 'Tesla M60';
         const expectedDriverVersion = '384.111';
-        const expectedCoresId2NumberHash = {
+        const expectedProductsName = {
+            '00000000:06:00.0': 'Tesla M60',
+            '00000000:07:00.0': 'Tesla M61'
+        };
+        const expectedPciId2CoreNumber = {
             '00000000:06:00.0': '0',
             '00000000:07:00.0': '1'
         };
@@ -31,17 +34,17 @@ describe('NvidiaGpuInfo methods tests', () => {
 
         assert.isTrue(readCoresMetaDataStub.calledOnce);
         assert.isTrue(readCoresMetaDataStub.calledWithExactly());
-        assert.deepEqual(nvidiaGpuInfo._coresId2NumberHash, expectedCoresId2NumberHash);
-        assert.deepEqual(nvidiaGpuInfo._productName, expectedProductName);
-        assert.deepEqual(nvidiaGpuInfo._driverVersion, expectedDriverVersion);
+        assert.deepEqual(nvidiaGpuInfo._pciId2CoreNumber, expectedPciId2CoreNumber);
+        assert.deepEqual(nvidiaGpuInfo._productsName, expectedProductsName);
+        assert.strictEqual(nvidiaGpuInfo._driverVersion, expectedDriverVersion);
     });
 
 
     it('parseGpuMetaData() throws error', async () => {
         const expectedError = new Error('Some Error');
-        const expectedProductName = '';
-        const expectedDriverVersion = '';
-        const expectedCoresId2NumberHash = {};
+        const expectedProductName = {};
+        const expectedDriverVersion = undefined;
+        const expectedPciId2CoreNumber = {};
 
         const readCoresMetaDataStub = sinon.stub(nvidiaGpuInfo, '_readCoresMetaData');
         readCoresMetaDataStub.returns(Promise.reject(expectedError));
@@ -54,8 +57,8 @@ describe('NvidiaGpuInfo methods tests', () => {
             assert.equal(err.message, expectedError.message);
             assert.isTrue(readCoresMetaDataStub.calledOnce);
             assert.isTrue(readCoresMetaDataStub.calledWithExactly());
-            assert.deepEqual(nvidiaGpuInfo._coresId2NumberHash, expectedCoresId2NumberHash);
-            assert.deepEqual(nvidiaGpuInfo._productName, expectedProductName);
+            assert.deepEqual(nvidiaGpuInfo._pciId2CoreNumber, expectedPciId2CoreNumber);
+            assert.deepEqual(nvidiaGpuInfo._productsName, expectedProductName);
             assert.deepEqual(nvidiaGpuInfo._driverVersion, expectedDriverVersion);
         }
     });
