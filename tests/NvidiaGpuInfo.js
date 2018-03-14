@@ -35,7 +35,7 @@ describe('NvidiaGpuInfo methods tests', () => {
         assert.isTrue(readCoresMetaDataStub.calledOnce);
         assert.isTrue(readCoresMetaDataStub.calledWithExactly());
         assert.deepEqual(nvidiaGpuInfo._pciId2CoreNumber, expectedPciId2CoreNumber);
-        assert.deepEqual(nvidiaGpuInfo._productsName, expectedProductsName);
+        assert.deepEqual(nvidiaGpuInfo._productNames, expectedProductsName);
         assert.strictEqual(nvidiaGpuInfo._driverVersion, expectedDriverVersion);
     });
 
@@ -58,7 +58,7 @@ describe('NvidiaGpuInfo methods tests', () => {
             assert.isTrue(readCoresMetaDataStub.calledOnce);
             assert.isTrue(readCoresMetaDataStub.calledWithExactly());
             assert.deepEqual(nvidiaGpuInfo._pciId2CoreNumber, expectedPciId2CoreNumber);
-            assert.deepEqual(nvidiaGpuInfo._productsName, expectedProductName);
+            assert.deepEqual(nvidiaGpuInfo._productNames, expectedProductName);
             assert.deepEqual(nvidiaGpuInfo._driverVersion, expectedDriverVersion);
         }
     });

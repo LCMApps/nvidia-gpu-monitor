@@ -155,7 +155,7 @@ class NvidiaGpuMonitor {
             throw new Error('NvidiaGpuMonitor service is not started');
         }
 
-        return this._nvidiaGpuInfo.getProductsName();
+        return this._nvidiaGpuInfo.getProductNames();
     }
 
     /**

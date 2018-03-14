@@ -549,8 +549,8 @@ describe('NvidiaGpuMonitor methods tests', () => {
 
     it('getGpuProductName() returns GPU driver version', () => {
         nvidiaGpuMonitor._status = NvidiaGpuMonitor.STATUS_STARTED;
-        nvidiaGpuMonitor._nvidiaGpuInfo._productsName = gpuProductName;
-        const getProductNameSpy = sinon.spy(nvidiaGpuMonitor._nvidiaGpuInfo, 'getProductsName');
+        nvidiaGpuMonitor._nvidiaGpuInfo._productNames = gpuProductName;
+        const getProductNameSpy = sinon.spy(nvidiaGpuMonitor._nvidiaGpuInfo, 'getProductNames');
 
         const result = nvidiaGpuMonitor.getGpuProductsName();
 
