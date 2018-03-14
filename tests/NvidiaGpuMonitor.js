@@ -36,14 +36,6 @@ const testParams = {
     notAString: [
         vt(true), vt(123), vt(undefined), vt(Symbol()), vt({}), vt(setTimeout), vt(null)
     ],
-    // all types except string and null
-    notAnEmptyStringAndNull: [
-        vt(true), vt(123), vt(undefined), vt(Symbol()), vt({}), vt(setTimeout), vt('')
-    ],
-    // all types except array
-    notAnArray: [
-        vt('8080'), vt(123), vt(true), vt(undefined), vt(Symbol()), vt({}), vt(setTimeout), vt(null)
-    ],
     // all types except an object
     notAnObject: [
         vt('8080'), vt(123), vt(true), vt(undefined), vt(Symbol()), vt(setTimeout), vt(null)
