@@ -86,16 +86,16 @@ describe('NvidiaGpuMonitor::constructor', () => {
     });
 
     dataDriven(testParams.notANumber, function () {
-        it('incorrect type of checkInterval, type = {type}', (arg) => {
+        it('incorrect type of checkIntervalMsec, type = {type}', (arg) => {
             assert.throws(
                 () => {
                     new NvidiaGpuMonitor({
                         nvidiaSmiPath: '',
-                        checkInterval: arg.value
+                        checkIntervalMsec: arg.value
                     });
                 },
                 TypeError,
-                'field "checkInterval" is required and must be an integer and not less than 1');
+                'field "checkIntervalMsec" is required and must be an integer and not less than 1');
         });
     });
 
@@ -105,7 +105,7 @@ describe('NvidiaGpuMonitor::constructor', () => {
                 () => {
                     new NvidiaGpuMonitor({
                         nvidiaSmiPath: '',
-                        checkInterval: 1000,
+                        checkIntervalMsec: 1000,
                         mem: arg.value
                     });
                 },
@@ -119,7 +119,7 @@ describe('NvidiaGpuMonitor::constructor', () => {
             () => {
                 new NvidiaGpuMonitor({
                     nvidiaSmiPath: '',
-                    checkInterval: 1000,
+                    checkIntervalMsec: 1000,
                     mem: {
                         thresholdType: 'sma'
                     }
@@ -135,7 +135,7 @@ describe('NvidiaGpuMonitor::constructor', () => {
                 () => {
                     new NvidiaGpuMonitor({
                         nvidiaSmiPath: '',
-                        checkInterval: 1000,
+                        checkIntervalMsec: 1000,
                         mem: {
                             thresholdType: 'fixed',
                             minFree: arg.value
@@ -153,7 +153,7 @@ describe('NvidiaGpuMonitor::constructor', () => {
                 () => {
                     new NvidiaGpuMonitor({
                         nvidiaSmiPath: '',
-                        checkInterval: 1000,
+                        checkIntervalMsec: 1000,
                         mem: {
                             thresholdType: 'rate',
                             highWatermark: arg.value
@@ -171,7 +171,7 @@ describe('NvidiaGpuMonitor::constructor', () => {
                 () => {
                     new NvidiaGpuMonitor({
                         nvidiaSmiPath: '',
-                        checkInterval: 1000,
+                        checkIntervalMsec: 1000,
                         mem: {
                             thresholdType: 'none'
                         },
@@ -188,7 +188,7 @@ describe('NvidiaGpuMonitor::constructor', () => {
             () => {
                 new NvidiaGpuMonitor({
                     nvidiaSmiPath: '',
-                    checkInterval: 1000,
+                    checkIntervalMsec: 1000,
                     mem: {
                         thresholdType: 'none'
                     },
@@ -207,7 +207,7 @@ describe('NvidiaGpuMonitor::constructor', () => {
                 () => {
                     new NvidiaGpuMonitor({
                         nvidiaSmiPath: '',
-                        checkInterval: 1000,
+                        checkIntervalMsec: 1000,
                         mem: {
                             thresholdType: 'none'
                         },
@@ -227,7 +227,7 @@ describe('NvidiaGpuMonitor::constructor', () => {
             () => {
                 new NvidiaGpuMonitor({
                     nvidiaSmiPath: '',
-                    checkInterval: 1000,
+                    checkIntervalMsec: 1000,
                     mem: {
                         thresholdType: 'none'
                     },
@@ -247,7 +247,7 @@ describe('NvidiaGpuMonitor::constructor', () => {
                 () => {
                     new NvidiaGpuMonitor({
                         nvidiaSmiPath: '',
-                        checkInterval: 1000,
+                        checkIntervalMsec: 1000,
                         mem: {
                             thresholdType: 'none'
                         },
@@ -270,7 +270,7 @@ describe('NvidiaGpuMonitor::constructor', () => {
                 () => {
                     new NvidiaGpuMonitor({
                         nvidiaSmiPath: '',
-                        checkInterval: 1000,
+                        checkIntervalMsec: 1000,
                         mem: {
                             thresholdType: 'none'
                         },
@@ -291,7 +291,7 @@ describe('NvidiaGpuMonitor::constructor', () => {
             () => {
                 new NvidiaGpuMonitor({
                     nvidiaSmiPath: '',
-                    checkInterval: 1000,
+                    checkIntervalMsec: 1000,
                     mem: {
                         thresholdType: 'none'
                     },
@@ -314,7 +314,7 @@ describe('NvidiaGpuMonitor::constructor', () => {
                 () => {
                     new NvidiaGpuMonitor({
                         nvidiaSmiPath: '',
-                        checkInterval: 1000,
+                        checkIntervalMsec: 1000,
                         mem: {
                             thresholdType: 'none'
                         },
@@ -338,7 +338,7 @@ describe('NvidiaGpuMonitor::constructor', () => {
             () => {
                 new NvidiaGpuMonitor({
                     nvidiaSmiPath: '',
-                    checkInterval: 1000,
+                    checkIntervalMsec: 1000,
                     mem: {
                         thresholdType: 'none'
                     },
@@ -362,7 +362,7 @@ describe('NvidiaGpuMonitor::constructor', () => {
                 () => {
                     new NvidiaGpuMonitor({
                         nvidiaSmiPath: '',
-                        checkInterval: 1000,
+                        checkIntervalMsec: 1000,
                         mem: {
                             thresholdType: 'none'
                         },
@@ -388,7 +388,7 @@ describe('NvidiaGpuMonitor methods tests', () => {
     const monitorConf = {
         nvidiaSmiPath: '/usr/bin/nvidia-sma',
         gpuStatPath: './tests/coresStatOutput.txt',
-        checkInterval: 15000,
+        checkIntervalMsec: 15000,
         mem: {
             thresholdType: 'none',
             minFree: 1024,
@@ -430,7 +430,7 @@ describe('NvidiaGpuMonitor methods tests', () => {
         assert.isTrue(parseGpuMetaDataStub.calledOnce);
         assert.isTrue(parseGpuMetaDataStub.calledWithExactly());
         assert.equal(actualSchedulerClass, expectedSchedulerClass);
-        assert.equal(nvidiaGpuMonitor._monitorScheduler._repeat, monitorConf.checkInterval);
+        assert.equal(nvidiaGpuMonitor._monitorScheduler._repeat, monitorConf.checkIntervalMsec);
     });
 
     it('second start() call throws error', async () => {

@@ -32,24 +32,24 @@ class NvidiaGpuMonitor extends EventEmitter {
 
     /**
      * @param {string} nvidiaSmiPath
-     * @param {number} checkInterval
+     * @param {number} checkIntervalMsec
      * @param {Object} mem
      * @param {Object} decoder
      * @param {Object} encoder
      */
-    constructor({nvidiaSmiPath, checkInterval, mem, decoder, encoder}) {
+    constructor({nvidiaSmiPath, checkIntervalMsec, mem, decoder, encoder}) {
         super();
 
         if (typeof nvidiaSmiPath !== 'string') {
             throw new TypeError('field "nvidiaSmiPath" is required and must be a string');
         }
 
-        if (!Number.isSafeInteger(checkInterval) || checkInterval < 1) {
-            throw new TypeError('field "checkInterval" is required and must be an integer and not less than 1');
+        if (!Number.isSafeInteger(checkIntervalMsec) || checkIntervalMsec < 1) {
+            throw new TypeError('field "checkIntervalMsec" is required and must be an integer and not less than 1');
         }
 
         this._nvidiaSmiPath = nvidiaSmiPath;
-        this._checkInterval = checkInterval;
+        this._checkInterval = checkIntervalMsec;
         this._isMemOverloaded = undefined;
 
         this._initMemChecks(mem);
