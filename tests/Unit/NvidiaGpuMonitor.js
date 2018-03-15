@@ -615,7 +615,7 @@ describe('NvidiaGpuMonitor methods tests', () => {
 
         const result = await nvidiaGpuMonitor._parseGpuStat();
 
-        eventWaiter.then(error => {
+        return eventWaiter.then(error => {
             assert.deepEqual(error, expectedError);
             assert.isTrue(readGpuStatDataStub.calledOnce);
             assert.isTrue(readGpuStatDataStub.calledWithExactly());
