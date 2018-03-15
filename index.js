@@ -1,5 +1,6 @@
 'use strict';
 
+const EventEmitter = require('events');
 const exec = require('child_process').exec;
 const promisify = require('util').promisify;
 
@@ -17,7 +18,10 @@ const STAT_GRAB_PATTERN = new RegExp(
     'g'
 );
 
-class NvidiaGpuMonitor {
+/**
+ * @emits NvidiaGpuMonitor#error
+ */
+class NvidiaGpuMonitor extends EventEmitter {
     static get STATUS_STOPPED() {
         return 1;
     }
@@ -34,6 +38,8 @@ class NvidiaGpuMonitor {
      * @param {Object} encoder
      */
     constructor({nvidiaSmiPath, checkInterval, mem, decoder, encoder}) {
+        super();
+
         if (typeof nvidiaSmiPath !== 'string') {
             throw new TypeError('field "nvidiaSmiPath" is required and must be a string');
         }
@@ -230,6 +236,7 @@ class NvidiaGpuMonitor {
         try {
             gpuStat = await this._readGpuStatData();
         } catch (err) {
+            this.emit('error', err);
             wasError = true;
         }
 
@@ -287,9 +294,9 @@ class NvidiaGpuMonitor {
         this._gpuCoresMem = gpuCoresMem;
         this._gpuEncodersUsage = this._encoderUsageCalculator.getUsage(gpuEncodersUtilization);
         this._gpuDecodersUsage = this._decoderUsageCalculator.getUsage(gpuDecodersUtilization);
-        this._isOverloaded = this._isMemOverloaded(gpuCoresMem)
-            || this._isEncoderOverloaded(gpuEncodersUtilization)
-            || this._isDecoderOverloaded(gpuDecodersUtilization);
+        this._isOverloaded = this._isMemOverloaded(this._gpuCoresMem)
+            || this._isEncoderOverloaded(this._gpuEncodersUsage)
+            || this._isDecoderOverloaded(this._gpuDecodersUsage);
     }
 
     /**
