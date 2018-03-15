@@ -241,16 +241,17 @@ class NvidiaGpuMonitor {
         if (!wasError) {
             let matchResult;
             while ((matchResult = STAT_GRAB_PATTERN.exec(gpuStat)) !== null) {
-                if (matchResult[1] !== undefined && this._nvidiaGpuInfo.getCoreNumber(matchResult[1]) !== undefined) {
-                    const pciId = matchResult[1];
+                const pciId = matchResult[1];
+
+                if (pciId !== undefined && this._nvidiaGpuInfo.hasPciId(pciId)) {
                     const totalMem = Number.parseInt(matchResult[2]);
                     const freeMem = Number.parseInt(matchResult[3]);
                     const encoderUtilization = Number.parseInt(matchResult[4]);
                     const decoderUtilization = Number.parseInt(matchResult[5]);
 
                     if (
-                        Number.isInteger(totalMem) && Number.isInteger(freeMem) && Number.isInteger(encoderUtilization)
-                        && Number.isInteger(decoderUtilization)
+                        Number.isInteger(totalMem) && Number.isInteger(freeMem) &&
+                        Number.isInteger(encoderUtilization) && Number.isInteger(decoderUtilization)
                     ) {
                         gpuPciIdList.push(pciId);
                         gpuCoresMem[pciId] = {};
