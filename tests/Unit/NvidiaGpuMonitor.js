@@ -1,14 +1,15 @@
 'use strict';
 
 const fs = require('fs');
+const path = require('path');
 const sinon = require('sinon');
 const assert = require('chai').assert;
 const dataDriven = require('data-driven');
 const deepFreeze = require('deep-freeze');
 
-const NvidiaGpuMonitor = require('../index');
+const NvidiaGpuMonitor = require('../../index');
 
-const coresStatOutput = fs.readFileSync('./tests/gpuStat.txt', 'utf8');
+const coresStatOutput = fs.readFileSync(path.resolve(__dirname, 'data/gpuStat.txt'), 'utf8');
 
 /**
  * Returns object with passed to function variable itself and its type.

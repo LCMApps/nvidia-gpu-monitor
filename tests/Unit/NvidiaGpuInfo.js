@@ -1,12 +1,13 @@
 'use strict';
 
 const fs = require('fs');
+const path = require('path');
 const sinon = require('sinon');
 const assert = require('chai').assert;
 
-const NvidiaGpuInfo = require('../lib/NvidiaGpuInfo');
+const NvidiaGpuInfo = require('../../lib/NvidiaGpuInfo');
 
-const coresMetaInfoOutput = fs.readFileSync('./tests/gpuMetaInfo.txt', 'utf8');
+const coresMetaInfoOutput = fs.readFileSync(path.resolve(__dirname, 'data/gpuMetaInfo.txt'), 'utf8');
 
 describe('NvidiaGpuInfo methods tests', () => {
     let nvidiaSmiPath = '/usr/bin/nvidia-sma';
