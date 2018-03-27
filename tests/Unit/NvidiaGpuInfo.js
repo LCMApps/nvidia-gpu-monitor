@@ -24,8 +24,8 @@ describe('NvidiaGpuInfo methods tests', () => {
             '00000000:07:00.0': 'Tesla M61'
         };
         const expectedPciId2CoreNumber = {
-            '00000000:06:00.0': '0',
-            '00000000:07:00.0': '1'
+            '00000000:06:00.0': 0,
+            '00000000:07:00.0': 1
         };
 
         const readCoresMetaDataStub = sinon.stub(nvidiaGpuInfo, '_readCoresMetaData');
