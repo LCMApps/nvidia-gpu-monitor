@@ -430,7 +430,7 @@ describe('NvidiaGpuMonitor methods tests', () => {
         assert.isTrue(parseGpuMetaDataStub.calledOnce);
         assert.isTrue(parseGpuMetaDataStub.calledWithExactly());
         assert.equal(actualSchedulerClass, expectedSchedulerClass);
-        assert.equal(nvidiaGpuMonitor._monitorScheduler._repeat, monitorConf.checkIntervalMsec);
+        assert.equal(nvidiaGpuMonitor._monitorScheduler._idleTimeout, monitorConf.checkIntervalMsec);
     });
 
     it('second start() call throws error', async () => {
@@ -468,7 +468,7 @@ describe('NvidiaGpuMonitor methods tests', () => {
         assert.isTrue(parseGpuMetaDataStub.calledOnce);
         assert.isTrue(parseGpuMetaDataStub.calledWithExactly());
         assert.equal(nvidiaGpuMonitor._status, NvidiaGpuMonitor.STATUS_STOPPED);
-        assert.equal(nvidiaGpuMonitor._monitorScheduler._repeat, null);
+        assert.equal(nvidiaGpuMonitor._monitorScheduler, null);
     });
 
     it('second stop() call throw error', async () => {
@@ -487,7 +487,7 @@ describe('NvidiaGpuMonitor methods tests', () => {
         assert.isTrue(parseGpuMetaDataStub.calledOnce);
         assert.isTrue(parseGpuMetaDataStub.calledWithExactly());
         assert.equal(nvidiaGpuMonitor._status, NvidiaGpuMonitor.STATUS_STOPPED);
-        assert.equal(nvidiaGpuMonitor._monitorScheduler._repeat, null);
+        assert.equal(nvidiaGpuMonitor._monitorScheduler, null);
     });
 
     it('getGpuStatistic() returns array with cores statistic', () => {

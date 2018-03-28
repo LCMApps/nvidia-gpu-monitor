@@ -28,8 +28,8 @@ describe('GpuUtilizationSma methods tests', () => {
 
     it('getUsage() returns correctly calculated usage', () => {
         const expectedGpuUsage = {
-            '00000000:06:00.0': (10 + 10 + 50) / 3,
-            '00000000:07:00.0': (25 + 25 + 33) / 3
+            '00000000:06:00.0': parseInt((10 + 10 + 50) / 3),
+            '00000000:07:00.0': parseInt((25 + 25 + 33) / 3)
         };
         const gpuUtilizationSma = new GpuUtilizationSma(periodPoints);
 

@@ -82,9 +82,8 @@ class NvidiaGpuMonitor extends EventEmitter {
         }
 
         await this._nvidiaGpuInfo.parseGpuMetaData();
-        await this._determineCoresStatistic();
+        await this._runMonitorScheduler();
 
-        this._monitorScheduler = setInterval(() => this._determineCoresStatistic(), this._checkInterval);
         this._status = NvidiaGpuMonitor.STATUS_STARTED;
     }
 
@@ -96,7 +95,8 @@ class NvidiaGpuMonitor extends EventEmitter {
             throw new Error('NvidiaGpuMonitor service is not started');
         }
 
-        clearInterval(this._monitorScheduler);
+        clearTimeout(this._monitorScheduler);
+        this._monitorScheduler = null;
 
         this._status = NvidiaGpuMonitor.STATUS_STOPPED;
     }
@@ -297,6 +297,15 @@ class NvidiaGpuMonitor extends EventEmitter {
         this._isOverloaded = this._isMemOverloaded(this._gpuCoresMem)
             || this._isEncoderOverloaded(this._gpuEncodersUsage)
             || this._isDecoderOverloaded(this._gpuDecodersUsage);
+    }
+
+    /**
+     * @throws {Error}
+     */
+    async _runMonitorScheduler() {
+        await this._determineCoresStatistic();
+
+        this._monitorScheduler = setTimeout(() => this._runMonitorScheduler(), this._checkInterval);
     }
 
     /**
