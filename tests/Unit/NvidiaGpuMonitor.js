@@ -561,10 +561,15 @@ describe('NvidiaGpuMonitor methods tests', () => {
     });
 
     it('_parseGpuStat() scrapes data from nvidia-smi output', async () => {
+        let executionTime;
         const readGpuStatDataStub = sinon.stub(nvidiaGpuMonitor, '_readGpuStatData');
         readGpuStatDataStub.returns(Promise.resolve(coresStatOutput));
 
         nvidiaGpuMonitor._nvidiaGpuInfo._pciId2CoreNumber = pciId2CoreNumber;
+
+        nvidiaGpuMonitor.on('executionTime', duration => {
+            executionTime = duration;
+        });
 
         const result = await nvidiaGpuMonitor._parseGpuStat();
 
@@ -574,6 +579,7 @@ describe('NvidiaGpuMonitor methods tests', () => {
         assert.deepEqual(result.gpuCoresMem, gpuCoresMem);
         assert.deepEqual(result.gpuEncodersUtilization, gpuEncodersUtilization);
         assert.deepEqual(result.gpuDecodersUtilization, gpuDecodersUtilization);
+        assert.isNumber(executionTime);
     });
 
     it('_parseGpuStat() returns empty collections of stats because nvidia-smi output empty', async () => {
@@ -754,6 +760,26 @@ describe('NvidiaGpuMonitor methods tests', () => {
         assert.isTrue(isDecoderOverloadedStub.calledOnce);
         assert.isTrue(isDecoderOverloadedStub.calledWithExactly(nvidiaGpuMonitor._gpuDecodersUtilization));
         assert.strictEqual(nvidiaGpuMonitor._isOverloaded, false);
+    });
+
+    it('_determineCoresStatistic() does not run _parseGpuStat() if nvidia-smi command already execute', async () => {
+        const parseGpuStatStub = sinon.stub(nvidiaGpuMonitor, '_parseGpuStat');
+        const encoderUsageCalculatorStub = sinon.stub(nvidiaGpuMonitor._encoderUsageCalculator, 'getUsage');
+        const decoderUsageCalculatorStub = sinon.stub(nvidiaGpuMonitor._decoderUsageCalculator, 'getUsage');
+        const isMemOverloadedStub = sinon.stub(nvidiaGpuMonitor, '_isMemOverloaded');
+        const isEncoderOverloadedStub = sinon.stub(nvidiaGpuMonitor, '_isEncoderOverloaded');
+        const isDecoderOverloadedStub = sinon.stub(nvidiaGpuMonitor, '_isDecoderOverloaded');
+
+        nvidiaGpuMonitor._nvidiaSmiRunned = true;
+
+        await nvidiaGpuMonitor._determineCoresStatistic();
+
+        assert.isTrue(parseGpuStatStub.notCalled);
+        assert.isTrue(encoderUsageCalculatorStub.notCalled);
+        assert.isTrue(decoderUsageCalculatorStub.notCalled);
+        assert.isTrue(isMemOverloadedStub.notCalled);
+        assert.isTrue(isEncoderOverloadedStub.notCalled);
+        assert.isTrue(isDecoderOverloadedStub.notCalled);
     });
 
     it('_isMemOverloadedByFixedThreshold() return false if enough free mem on each GPU core', () => {

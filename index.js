@@ -19,6 +19,14 @@ const STAT_GRAB_PATTERN = new RegExp(
 );
 
 /**
+ * Event is emitted when execution of nvidia-smi was finished
+ *
+ * @event NvidiaGpuMonitor#executionTime
+ * @param {number} duration - duration in milliseconds.
+ */
+
+/**
+ * @emits NvidiaGpuMonitor#executionTime
  * @emits NvidiaGpuMonitor#error
  */
 class NvidiaGpuMonitor extends EventEmitter {
@@ -71,6 +79,7 @@ class NvidiaGpuMonitor extends EventEmitter {
         this._isOverloaded = true;
 
         this._monitorScheduler = undefined;
+        this._nvidiaSmiRunned = false;
     }
 
     /**
@@ -232,14 +241,18 @@ class NvidiaGpuMonitor extends EventEmitter {
     async _parseGpuStat() {
         let gpuStat;
         let wasError = false;
+        this._nvidiaSmiRunned = true;
+        const executionStart = Date.now();
 
         try {
             gpuStat = await this._readGpuStatData();
+            this.emit('executionTime', Date.now() - executionStart);
         } catch (err) {
             this.emit('error', err);
             wasError = true;
         }
 
+        this._nvidiaSmiRunned = false;
         const gpuPciIdList = [];
         const gpuCoresMem = {};
         const gpuEncodersUtilization = {};
@@ -283,6 +296,10 @@ class NvidiaGpuMonitor extends EventEmitter {
      * @throws {Error}
      */
     async _determineCoresStatistic() {
+        if (this._nvidiaSmiRunned) {
+            return;
+        }
+
         const {
             gpuPciIdList,
             gpuCoresMem,
