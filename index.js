@@ -145,16 +145,19 @@ class NvidiaGpuMonitor extends EventEmitter {
         const output = [];
 
         for (const coreNumber of this._gpuCoresNumber.values()) {
-            output.push({
-                core: coreNumber,
-                mem: {
-                    free: this._gpuCoresMem[coreNumber].free
-                },
-                usage: {
-                    enc: this._gpuEncodersUsage[coreNumber],
-                    dec: this._gpuDecodersUsage[coreNumber]
-                }
-            });
+            if (this._nvidiaGpuInfo.hasCoreNumber(coreNumber && this._gpuCoresMem[coreNumber]
+                && this._gpuEncodersUsage[coreNumber]) && this._gpuDecodersUsage[coreNumber]) {
+                output.push({
+                    core: coreNumber,
+                    mem: {
+                        free: this._gpuCoresMem[coreNumber].free
+                    },
+                    usage: {
+                        enc: this._gpuEncodersUsage[coreNumber],
+                        dec: this._gpuDecodersUsage[coreNumber]
+                    }
+                });
+            }
         }
 
         return output;
