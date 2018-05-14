@@ -96,7 +96,7 @@ class NvidiaGpuMonitor extends EventEmitter {
         this._healthy = true;
         this._status = NvidiaGpuMonitor.STATUS_STARTED;
 
-        return Array.from(this._nvidiaGpuInfo.getCoreNumbers());
+        return this._nvidiaGpuInfo.getCoreNumbers();
     }
 
     /**
@@ -294,19 +294,10 @@ class NvidiaGpuMonitor extends EventEmitter {
             }
         }
 
-        if (regExpLastIndex !== watcherOutput.length) {
-            this._prevWatcherOutput = watcherOutput || '';
-        }
-
         this._gpuCoresNumber = gpuCoresNumber;
 
-        if (gpuCoresNumber.size !== this._nvidiaGpuInfo.getCoreNumbers().length) {
-            this._nvidiaGpuInfo.parseGpuMetaData()
-                .catch(err => {
-                    if (this._status !== NvidiaGpuMonitor.STATUS_STOPPED) {
-                        this.emit('error', err);
-                    }
-                });
+        if (regExpLastIndex !== watcherOutput.length - 1) {
+            this._prevWatcherOutput = watcherOutput;
         } else {
             this._processCoresStatistic(gpuCoresMem, gpuEncodersUtilization, gpuDecodersUtilization);
 
