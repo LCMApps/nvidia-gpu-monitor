@@ -17,6 +17,7 @@ const STAT_GRAB_PATTERN = new RegExp(
  * @emits NvidiaGpuMonitor#healthy
  * @emits NvidiaGpuMonitor#unhealhy
  * @emits NvidiaGpuMonitor#error
+ * @emits NvidiaGpuMonitor#stopped
  */
 class NvidiaGpuMonitor extends EventEmitter {
     static get STATUS_STOPPED() {
@@ -64,8 +65,10 @@ class NvidiaGpuMonitor extends EventEmitter {
 
         this._status = NvidiaGpuMonitor.STATUS_STOPPED;
         this._dmonWatcher = undefined;
-        this._healthy = false;
+        this._restartTimer = undefined;
         this._healthyTimer = undefined;
+        this._healthy = false;
+        this._prevWatcherOutput = '';
 
         this._nvidiaGpuInfo = new NvidiaGpuInfo(nvidiaSmiPath);
         this._gpuCoresNumber = new Set();
@@ -100,11 +103,15 @@ class NvidiaGpuMonitor extends EventEmitter {
 
         this._status = NvidiaGpuMonitor.STATUS_STOPPING;
 
+        if (this._healthyTimer !== undefined) {
+            clearTimeout(this._healthyTimer);
+        }
+
         if (this._restartTimer !== undefined) {
             clearTimeout(this._restartTimer);
             this._restartTimer = undefined;
         } else {
-            this._worker.kill('SIGTERM');
+            this._dmonWatcher.kill('SIGTERM');
             this._healthy = false;
         }
     }
@@ -113,6 +120,10 @@ class NvidiaGpuMonitor extends EventEmitter {
      * @returns {boolean}
      */
     isWatchHealthy() {
+        if (this._status === NvidiaGpuMonitor.STATUS_STOPPED) {
+            throw new Error('NvidiaGpuMonitor service is not started');
+        }
+
         return this._healthy;
     }
 
@@ -127,7 +138,7 @@ class NvidiaGpuMonitor extends EventEmitter {
 
         const output = [];
 
-        for (const coreNumber of this._nvidiaGpuInfo.getCoreNumbers()) {
+        for (const coreNumber of this._gpuCoresNumber) {
             output.push({
                 core: coreNumber,
                 mem: {
@@ -200,22 +211,24 @@ class NvidiaGpuMonitor extends EventEmitter {
         this._healthy = false;
 
         this.emit('error', err);
+        this.emit('unhealthy');
     }
 
     _watcherExitHandler(code, signal) {
         this._healthy = false;
-        this._worker.stdout.removeAllListeners();
+        this._dmonWatcher.stdout.removeAllListeners();
 
-        this._worker.stdin.destroy();
-        this._worker.stdout.destroy();
-        this._worker.stderr.destroy();
+        this._dmonWatcher.stdin.destroy();
+        this._dmonWatcher.stdout.destroy();
+        this._dmonWatcher.stderr.destroy();
 
 
         if (this._status !== NvidiaGpuMonitor.STATUS_STOPPING) {
+            this._restartTimer = setTimeout(() => this._runNvidiaSmiWatcher(), DEFAULT_RESTART_TIMEOUT_MSEC);
+
             const message = '"nvidia-smi dmon" finished with ' + code !== null ? `code ${code}` : `signal ${signal}`;
             this.emit('error', new Error(message));
-
-            this._restartTimer = setTimeout(() => this._runNvidiaSmiWatcher(), DEFAULT_RESTART_TIMEOUT_MSEC);
+            this.emit('unhealthy');
         } else {
             this._status = NvidiaGpuMonitor.STATUS_STOPPED;
             this.emit('stopped');
@@ -240,6 +253,11 @@ class NvidiaGpuMonitor extends EventEmitter {
         const gpuCoresMem = {};
         const gpuEncodersUtilization = {};
         const gpuDecodersUtilization = {};
+
+        if (this._healthyTimer !== undefined) {
+            clearTimeout(this._healthyTimer);
+            this._healthyTimer = undefined;
+        }
 
         if (this._prevWatcherOutput.length !== 0) {
             watcherOutput = this._prevWatcherOutput + watcherOutput;
@@ -270,6 +288,8 @@ class NvidiaGpuMonitor extends EventEmitter {
             this._prevWatcherOutput = watcherOutput;
         }
 
+        this._gpuCoresNumber = gpuCoresNumber;
+
         if (gpuCoresNumber.size !== this._nvidiaGpuInfo.getCoreNumbers().length) {
             this._nvidiaGpuInfo.parseGpuMetaData()
                 .catch(err => {
@@ -278,23 +298,26 @@ class NvidiaGpuMonitor extends EventEmitter {
                     }
                 });
         } else {
-            this._processCoresStatistic(gpuCoresNumber, gpuCoresMem, gpuEncodersUtilization, gpuDecodersUtilization);
+            this._processCoresStatistic(gpuCoresMem, gpuEncodersUtilization, gpuDecodersUtilization);
 
             if (!this._healthy) {
                 this._healthy = true;
                 this.emit('healthy');
             }
         }
+
+        this._healthyTimer = setTimeout(() => {
+            this._healthy = false;
+            this.emit('unhealthy');
+        }, this._checkInterval * 2 * 1000);
     }
 
     /**
-     * @param {Set} gpuCoresNumber
      * @param {Object} gpuCoresMem
      * @param {Object} gpuEncodersUtilization
      * @param {Object} gpuDecodersUtilization
      */
-    _processCoresStatistic(gpuCoresNumber, gpuCoresMem, gpuEncodersUtilization, gpuDecodersUtilization) {
-        this._gpuCoresNumber = gpuCoresNumber;
+    _processCoresStatistic(gpuCoresMem, gpuEncodersUtilization, gpuDecodersUtilization) {
         this._gpuCoresMem = gpuCoresMem;
         this._gpuEncodersUsage = this._encoderUsageCalculator.getUsage(gpuEncodersUtilization);
         this._gpuDecodersUsage = this._decoderUsageCalculator.getUsage(gpuDecodersUtilization);
