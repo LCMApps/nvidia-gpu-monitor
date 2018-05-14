@@ -95,6 +95,8 @@ class NvidiaGpuMonitor extends EventEmitter {
 
         this._healthy = true;
         this._status = NvidiaGpuMonitor.STATUS_STARTED;
+
+        return Array.from(this._nvidiaGpuInfo.getCoreNumbers());
     }
 
     /**
@@ -195,11 +197,6 @@ class NvidiaGpuMonitor extends EventEmitter {
     }
 
     /**
-
-     *
-     * this._readGpuStatData()
-     *
-     * @returns {string}
      * @throws {Error}
      */
     async _runNvidiaSmiWatcher() {
@@ -211,6 +208,9 @@ class NvidiaGpuMonitor extends EventEmitter {
         this._dmonWatcher.stdout.on('data', this._watcherDataHandler);
     }
 
+    /**
+     * @param {Error} err
+     */
     _watcherErrorHandler(err) {
         this._healthy = false;
 
@@ -218,6 +218,10 @@ class NvidiaGpuMonitor extends EventEmitter {
         this.emit('unhealthy');
     }
 
+    /**
+     * @param {number} code
+     * @param {string} signal
+     */
     _watcherExitHandler(code, signal) {
         this._healthy = false;
         this._dmonWatcher.stdout.removeAllListeners();
@@ -226,8 +230,7 @@ class NvidiaGpuMonitor extends EventEmitter {
         this._dmonWatcher.stdout.destroy();
         this._dmonWatcher.stderr.destroy();
 
-
-        if (this._status !== NvidiaGpuMonitor.STATUS_STOPPING) {
+        if(this._status !== NvidiaGpuMonitor.STATUS_STOPPING) {
             this._restartTimer = setTimeout(() => this._runNvidiaSmiWatcher(), DEFAULT_RESTART_TIMEOUT_MSEC);
 
             const message = '"nvidia-smi dmon" finished with ' + code !== null ? `code ${code}` : `signal ${signal}`;
