@@ -76,6 +76,10 @@ class NvidiaGpuMonitor extends EventEmitter {
         this._gpuEncodersUsage = {};
         this._gpuDecodersUsage = {};
         this._isOverloaded = true;
+
+        this._watcherErrorHandler = this._watcherErrorHandler.bind(this);
+        this._watcherExitHandler = this._watcherExitHandler.bind(this);
+        this._watcherDataHandler = this._watcherDataHandler.bind(this);
     }
 
     /**
@@ -204,7 +208,7 @@ class NvidiaGpuMonitor extends EventEmitter {
         this._dmonWatcher.on('error', this._watcherErrorHandler);
         this._dmonWatcher.on('exit', this._watcherExitHandler);
         this._dmonWatcher.stdout.setEncoding('utf8');
-        this._dmonWatcher.stdout.on('data', this._processWatcherData);
+        this._dmonWatcher.stdout.on('data', this._watcherDataHandler);
     }
 
     _watcherErrorHandler(err) {
@@ -248,7 +252,7 @@ class NvidiaGpuMonitor extends EventEmitter {
      *
      * @params {string} watcherOutput
      */
-    async _processWatcherData(watcherOutput) {
+    async _watcherDataHandler(watcherOutput) {
         const gpuCoresNumber = new Set();
         const gpuCoresMem = {};
         const gpuEncodersUtilization = {};
@@ -285,7 +289,7 @@ class NvidiaGpuMonitor extends EventEmitter {
         }
 
         if (regExpLastIndex !== watcherOutput.length) {
-            this._prevWatcherOutput = watcherOutput;
+            this._prevWatcherOutput = watcherOutput || '';
         }
 
         this._gpuCoresNumber = gpuCoresNumber;

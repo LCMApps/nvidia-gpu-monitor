@@ -560,7 +560,7 @@ describe('NvidiaGpuMonitor methods tests', () => {
         assert.deepEqual(result, gpuProductName);
     });
 
-    it('_processWatcherData() scrapes data from nvidia-smi output', async () => {
+    it('_watcherDataHandler() scrapes data from nvidia-smi output', async () => {
         let executionTime;
         const readGpuStatDataStub = sinon.stub(nvidiaGpuMonitor, '_readGpuStatData');
         readGpuStatDataStub.returns(Promise.resolve(coresStatOutput));
@@ -571,7 +571,7 @@ describe('NvidiaGpuMonitor methods tests', () => {
             executionTime = duration;
         });
 
-        const result = await nvidiaGpuMonitor._processWatcherData();
+        const result = await nvidiaGpuMonitor._watcherDataHandler();
 
         assert.isTrue(readGpuStatDataStub.calledOnce);
         assert.isTrue(readGpuStatDataStub.calledWithExactly());
@@ -582,7 +582,7 @@ describe('NvidiaGpuMonitor methods tests', () => {
         assert.isNumber(executionTime);
     });
 
-    it('_processWatcherData() returns empty collections of stats because nvidia-smi output empty', async () => {
+    it('_watcherDataHandler() returns empty collections of stats because nvidia-smi output empty', async () => {
         const expectedGpuCoreIdList = [];
         const expectedGpuCoresMem = {};
         const expectedGpuEncodersUtilization = {};
@@ -593,7 +593,7 @@ describe('NvidiaGpuMonitor methods tests', () => {
 
         nvidiaGpuMonitor._nvidiaGpuInfo._pciId2CoreNumber = pciId2CoreNumber;
 
-        const result = await nvidiaGpuMonitor._processWatcherData();
+        const result = await nvidiaGpuMonitor._watcherDataHandler();
 
         assert.isTrue(readGpuStatDataStub.calledOnce);
         assert.isTrue(readGpuStatDataStub.calledWithExactly());
@@ -603,7 +603,7 @@ describe('NvidiaGpuMonitor methods tests', () => {
         assert.deepEqual(result.gpuDecodersUtilization, expectedGpuDecodersUtilization);
     });
 
-    it('on error in _processWatcherData() returns empty collections of stats and instance emits error ', async () => {
+    it('on error in _watcherDataHandler() returns empty collections of stats and instance emits error ', async () => {
         const expectedError = new Error('Some error');
         const expectedGpuCoreIdList = [];
         const expectedGpuCoresMem = {};
@@ -619,7 +619,7 @@ describe('NvidiaGpuMonitor methods tests', () => {
             });
         });
 
-        const result = await nvidiaGpuMonitor._processWatcherData();
+        const result = await nvidiaGpuMonitor._watcherDataHandler();
 
         return eventWaiter.then(error => {
             assert.deepEqual(error, expectedError);
@@ -633,7 +633,7 @@ describe('NvidiaGpuMonitor methods tests', () => {
     });
 
     it('_processCoresStatistic() set overloaded state if GPU is overloaded by memory', async () => {
-        const parseGpuStatStub = sinon.stub(nvidiaGpuMonitor, '_processWatcherData');
+        const parseGpuStatStub = sinon.stub(nvidiaGpuMonitor, '_watcherDataHandler');
         const encoderUsageCalculatorStub = sinon.stub(nvidiaGpuMonitor._encoderUsageCalculator, 'getUsage');
         const decoderUsageCalculatorStub = sinon.stub(nvidiaGpuMonitor._decoderUsageCalculator, 'getUsage');
         const isMemOverloadedStub = sinon.stub(nvidiaGpuMonitor, '_isMemOverloaded');
@@ -663,7 +663,7 @@ describe('NvidiaGpuMonitor methods tests', () => {
     });
 
     it('_processCoresStatistic() set overloaded state if GPU is overloaded by encoder usage', async () => {
-        const parseGpuStatStub = sinon.stub(nvidiaGpuMonitor, '_processWatcherData');
+        const parseGpuStatStub = sinon.stub(nvidiaGpuMonitor, '_watcherDataHandler');
         const encoderUsageCalculatorStub = sinon.stub(nvidiaGpuMonitor._encoderUsageCalculator, 'getUsage');
         const decoderUsageCalculatorStub = sinon.stub(nvidiaGpuMonitor._decoderUsageCalculator, 'getUsage');
         const isMemOverloadedStub = sinon.stub(nvidiaGpuMonitor, '_isMemOverloaded');
@@ -695,7 +695,7 @@ describe('NvidiaGpuMonitor methods tests', () => {
     });
 
     it('_processCoresStatistic() set overloaded state if GPU is overloaded by decoder usage', async () => {
-        const parseGpuStatStub = sinon.stub(nvidiaGpuMonitor, '_processWatcherData');
+        const parseGpuStatStub = sinon.stub(nvidiaGpuMonitor, '_watcherDataHandler');
         const encoderUsageCalculatorStub = sinon.stub(nvidiaGpuMonitor._encoderUsageCalculator, 'getUsage');
         const decoderUsageCalculatorStub = sinon.stub(nvidiaGpuMonitor._decoderUsageCalculator, 'getUsage');
         const isMemOverloadedStub = sinon.stub(nvidiaGpuMonitor, '_isMemOverloaded');
@@ -729,7 +729,7 @@ describe('NvidiaGpuMonitor methods tests', () => {
     });
 
     it('_processCoresStatistic() not set overloaded state if GPU is not overloaded', async () => {
-        const parseGpuStatStub = sinon.stub(nvidiaGpuMonitor, '_processWatcherData');
+        const parseGpuStatStub = sinon.stub(nvidiaGpuMonitor, '_watcherDataHandler');
         const encoderUsageCalculatorStub = sinon.stub(nvidiaGpuMonitor._encoderUsageCalculator, 'getUsage');
         const decoderUsageCalculatorStub = sinon.stub(nvidiaGpuMonitor._decoderUsageCalculator, 'getUsage');
         const isMemOverloadedStub = sinon.stub(nvidiaGpuMonitor, '_isMemOverloaded');
@@ -762,8 +762,8 @@ describe('NvidiaGpuMonitor methods tests', () => {
         assert.strictEqual(nvidiaGpuMonitor._isOverloaded, false);
     });
 
-    it('_processCoresStatistic() does not run _processWatcherData() if nvidia-smi command already execute', async () => {
-        const parseGpuStatStub = sinon.stub(nvidiaGpuMonitor, '_processWatcherData');
+    it('_processCoresStatistic() does not run if nvidia-smi command already execute', async () => {
+        const parseGpuStatStub = sinon.stub(nvidiaGpuMonitor, '_watcherDataHandler');
         const encoderUsageCalculatorStub = sinon.stub(nvidiaGpuMonitor._encoderUsageCalculator, 'getUsage');
         const decoderUsageCalculatorStub = sinon.stub(nvidiaGpuMonitor._decoderUsageCalculator, 'getUsage');
         const isMemOverloadedStub = sinon.stub(nvidiaGpuMonitor, '_isMemOverloaded');
