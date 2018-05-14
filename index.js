@@ -142,7 +142,7 @@ class NvidiaGpuMonitor extends EventEmitter {
 
         const output = [];
 
-        for (const coreNumber of this._gpuCoresNumber) {
+        for (const coreNumber of this._gpuCoresNumber.values()) {
             output.push({
                 core: coreNumber,
                 mem: {
