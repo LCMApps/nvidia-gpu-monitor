@@ -20,13 +20,14 @@ describe('NvidiaGpuInfo methods tests', () => {
     it('parseGpuMetaData() scrapes info about GPU from nvidia-smi output', async () => {
         const expectedDriverVersion = '384.111';
         const expectedProductsName = {
-            '00000000:06:00.0': 'Tesla M60',
-            '00000000:07:00.0': 'Tesla M61'
+            '0': 'Tesla M60',
+            '1': 'Tesla M61'
         };
-        const expectedPciId2CoreNumber = {
-            '00000000:06:00.0': 0,
-            '00000000:07:00.0': 1
+        const expectedTotalMem = {
+            '0': 8129,
+            '1': 8000
         };
+        const expectedCoresNumber = ['0', '1'];
 
         const readCoresMetaDataStub = sinon.stub(nvidiaGpuInfo, '_readCoresMetaData');
         readCoresMetaDataStub.returns(Promise.resolve(coresMetaInfoOutput));
@@ -35,17 +36,20 @@ describe('NvidiaGpuInfo methods tests', () => {
 
         assert.isTrue(readCoresMetaDataStub.calledOnce);
         assert.isTrue(readCoresMetaDataStub.calledWithExactly());
-        assert.deepEqual(nvidiaGpuInfo._pciId2CoreNumber, expectedPciId2CoreNumber);
-        assert.deepEqual(nvidiaGpuInfo._productNames, expectedProductsName);
-        assert.strictEqual(nvidiaGpuInfo._driverVersion, expectedDriverVersion);
+        assert.deepEqual(nvidiaGpuInfo.getCoreNumbers(), expectedCoresNumber);
+        assert.deepEqual(nvidiaGpuInfo.getProductNames(), expectedProductsName);
+        assert.strictEqual(nvidiaGpuInfo.getDriverVersion(), expectedDriverVersion);
+        for (const coreNumber of expectedCoresNumber) {
+            assert.strictEqual(nvidiaGpuInfo.getTotalMemory(coreNumber), expectedTotalMem[coreNumber]);
+        }
     });
-
 
     it('parseGpuMetaData() throws error', async () => {
         const expectedError = new Error('Some Error');
-        const expectedProductName = {};
+        const expectedProductsName = {};
         const expectedDriverVersion = undefined;
-        const expectedPciId2CoreNumber = {};
+        const expectedTotalMem = {};
+        const expectedCoresNumber = [];
 
         const readCoresMetaDataStub = sinon.stub(nvidiaGpuInfo, '_readCoresMetaData');
         readCoresMetaDataStub.returns(Promise.reject(expectedError));
@@ -58,9 +62,25 @@ describe('NvidiaGpuInfo methods tests', () => {
             assert.equal(err.message, expectedError.message);
             assert.isTrue(readCoresMetaDataStub.calledOnce);
             assert.isTrue(readCoresMetaDataStub.calledWithExactly());
-            assert.deepEqual(nvidiaGpuInfo._pciId2CoreNumber, expectedPciId2CoreNumber);
-            assert.deepEqual(nvidiaGpuInfo._productNames, expectedProductName);
-            assert.deepEqual(nvidiaGpuInfo._driverVersion, expectedDriverVersion);
+            assert.deepEqual(nvidiaGpuInfo.getCoreNumbers(), expectedCoresNumber);
+            assert.deepEqual(nvidiaGpuInfo.getProductNames(), expectedProductsName);
+            assert.strictEqual(nvidiaGpuInfo.getDriverVersion(), expectedDriverVersion);
+            assert.deepEqual(nvidiaGpuInfo._totalMemory, expectedTotalMem);
         }
+    });
+
+    it('parseGpuMetaData() don`t run while previous call not finished', () => {
+        const readCoresMetaDataStub = sinon.stub(nvidiaGpuInfo, '_readCoresMetaData');
+        readCoresMetaDataStub.callsFake(function () {
+            return new Promise(resolve => {
+                setTimeout(() => resolve(coresMetaInfoOutput), 500);
+            });
+        });
+
+        nvidiaGpuInfo.parseGpuMetaData();
+        nvidiaGpuInfo.parseGpuMetaData();
+
+        assert.isTrue(readCoresMetaDataStub.calledOnce);
+        assert.isTrue(readCoresMetaDataStub.calledWithExactly());
     });
 });
