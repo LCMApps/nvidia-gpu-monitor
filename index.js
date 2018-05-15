@@ -2,6 +2,7 @@
 
 const EventEmitter = require('events');
 const spawn = require('child_process').spawn;
+const readline = require('readline');
 
 const GpuUtilization = require('./lib/GpuUtilization');
 const GpuUtilizationSma = require('./lib/GpuUtilizationSma');
@@ -68,18 +69,20 @@ class NvidiaGpuMonitor extends EventEmitter {
         this._restartTimer = undefined;
         this._healthyTimer = undefined;
         this._healthy = false;
-        this._prevWatcherOutput = '';
 
         this._nvidiaGpuInfo = new NvidiaGpuInfo(nvidiaSmiPath);
         this._gpuCoresNumber = new Set();
+        this._tmpGpuCoresNumber = new Set();
         this._gpuCoresMem = {};
         this._gpuEncodersUsage = {};
         this._gpuDecodersUsage = {};
+        this._gpuEncodersUtilization = {};
+        this._gpuDecodersUtilization = {};
         this._isOverloaded = true;
 
         this._watcherErrorHandler = this._watcherErrorHandler.bind(this);
         this._watcherExitHandler = this._watcherExitHandler.bind(this);
-        this._watcherDataHandler = this._watcherDataHandler.bind(this);
+        this._processGpuCoreInfo = this._processGpuCoreInfo.bind(this);
     }
 
     /**
@@ -117,7 +120,7 @@ class NvidiaGpuMonitor extends EventEmitter {
             clearTimeout(this._restartTimer);
             this._restartTimer = undefined;
         } else {
-            this._dmonWatcher.kill('SIGTERM');
+            this._dmonWatcher.kill();
             this._healthy = false;
         }
     }
@@ -145,19 +148,16 @@ class NvidiaGpuMonitor extends EventEmitter {
         const output = [];
 
         for (const coreNumber of this._gpuCoresNumber.values()) {
-            if (this._nvidiaGpuInfo.hasCoreNumber(coreNumber && this._gpuCoresMem[coreNumber]
-                && this._gpuEncodersUsage[coreNumber]) && this._gpuDecodersUsage[coreNumber]) {
-                output.push({
-                    core: coreNumber,
-                    mem: {
-                        free: this._gpuCoresMem[coreNumber].free
-                    },
-                    usage: {
-                        enc: this._gpuEncodersUsage[coreNumber],
-                        dec: this._gpuDecodersUsage[coreNumber]
-                    }
-                });
-            }
+            output.push({
+                core: Number.parseInt(coreNumber),
+                mem: {
+                    free: this._gpuCoresMem[coreNumber].free
+                },
+                usage: {
+                    enc: this._gpuEncodersUsage[coreNumber],
+                    dec: this._gpuDecodersUsage[coreNumber]
+                }
+            });
         }
 
         return output;
@@ -202,13 +202,19 @@ class NvidiaGpuMonitor extends EventEmitter {
     /**
      * @throws {Error}
      */
-    async _runNvidiaSmiWatcher() {
+    _runNvidiaSmiWatcher() {
         this._dmonWatcher = spawn(this._nvidiaSmiPath, ['dmon', '-d', this._checkInterval, '-s', 'mu']);
 
         this._dmonWatcher.on('error', this._watcherErrorHandler);
         this._dmonWatcher.on('exit', this._watcherExitHandler);
         this._dmonWatcher.stdout.setEncoding('utf8');
-        this._dmonWatcher.stdout.on('data', this._watcherDataHandler);
+
+        this._readLineInterface = readline.createInterface({
+            input: this._dmonWatcher.stdout,
+            crlfDelay: Infinity
+        });
+
+        this._readLineInterface.on('line', this._processGpuCoreInfo);
     }
 
     /**
@@ -246,65 +252,47 @@ class NvidiaGpuMonitor extends EventEmitter {
     }
 
     /**
-     * @example
-     * //watcherOutput
-     * # gpu    fb  bar1    sm   mem   enc   dec
-     * # Idx    MB    MB     %     %     %     %
-     *     0     0     2     0     0     0     0
-     *     1     0     2     0     0     0     0
-     *     2     0     2     0     0     0     0
-     *     3     0     2     0     0     0     0
-     *
-     *
      * @params {string} watcherOutput
      */
-    async _watcherDataHandler(watcherOutput) {
-        const gpuCoresNumber = new Set();
-        const gpuCoresMem = {};
-        const gpuEncodersUtilization = {};
-        const gpuDecodersUtilization = {};
-
+    async _processGpuCoreInfo(coreInfo) {
         if (this._healthyTimer !== undefined) {
             clearTimeout(this._healthyTimer);
             this._healthyTimer = undefined;
         }
 
-        if (this._prevWatcherOutput.length !== 0) {
-            watcherOutput = this._prevWatcherOutput + watcherOutput;
-            this._prevWatcherOutput = '';
-        }
-
-        let regExpLastIndex = 0;
         let matchResult;
-        while ((matchResult = STAT_GRAB_PATTERN.exec(watcherOutput)) !== null) {
-            regExpLastIndex = STAT_GRAB_PATTERN.lastIndex;
-            const coreNumber = Number.parseInt(matchResult[1]);
+        if ((matchResult = STAT_GRAB_PATTERN.exec(coreInfo)) !== null) {
+            STAT_GRAB_PATTERN.lastIndex = 0;
 
-            if (this._nvidiaGpuInfo.hasCoreNumber(coreNumber)) {
-                const totalMem = this._nvidiaGpuInfo.getTotalMemory(coreNumber);
-                const usedMem = Number.parseInt(matchResult[2]);
+            const coreNumber = matchResult[1];
+            const totalMem = this._nvidiaGpuInfo.getTotalMemory(coreNumber);
+            const usedMem = Number.parseInt(matchResult[2]);
 
-                gpuCoresNumber.add(coreNumber);
-                gpuCoresMem[coreNumber] = {
-                    total: totalMem,
-                    free: totalMem - usedMem
-                };
-                gpuEncodersUtilization[coreNumber] = Number.parseInt(matchResult[3]);
-                gpuDecodersUtilization[coreNumber] = Number.parseInt(matchResult[4]);
+            this._gpuCoresMem[coreNumber] = {
+                total: totalMem,
+                free: totalMem - usedMem
+            };
+            this._gpuEncodersUtilization[coreNumber] = Number.parseInt(matchResult[3]);
+            this._gpuDecodersUtilization[coreNumber] = Number.parseInt(matchResult[4]);
+
+            if (this._tmpGpuCoresNumber.has(coreNumber)) {
+                this._gpuCoresNumber = this._tmpGpuCoresNumber;
+                this._tmpGpuCoresNumber = new Set();
+                this._processCoresStatistic();
+            }
+
+            this._tmpGpuCoresNumber.add(coreNumber);
+
+            if (this._tmpGpuCoresNumber.size === this._nvidiaGpuInfo.getCoreNumbers().length) {
+                this._gpuCoresNumber = this._tmpGpuCoresNumber;
+                this._tmpGpuCoresNumber = new Set();
+                this._processCoresStatistic();
             }
         }
 
-        this._gpuCoresNumber = gpuCoresNumber;
-
-        if (regExpLastIndex !== watcherOutput.length - 1) {
-            this._prevWatcherOutput = watcherOutput;
-        } else {
-            this._processCoresStatistic(gpuCoresMem, gpuEncodersUtilization, gpuDecodersUtilization);
-
-            if (!this._healthy) {
-                this._healthy = true;
-                this.emit('healthy');
-            }
+        if (!this._healthy) {
+            this._healthy = true;
+            this.emit('healthy');
         }
 
         this._healthyTimer = setTimeout(() => {
@@ -313,15 +301,11 @@ class NvidiaGpuMonitor extends EventEmitter {
         }, this._checkInterval * 2 * 1000);
     }
 
-    /**
-     * @param {Object} gpuCoresMem
-     * @param {Object} gpuEncodersUtilization
-     * @param {Object} gpuDecodersUtilization
-     */
-    _processCoresStatistic(gpuCoresMem, gpuEncodersUtilization, gpuDecodersUtilization) {
-        this._gpuCoresMem = gpuCoresMem;
-        this._gpuEncodersUsage = this._encoderUsageCalculator.getUsage(gpuEncodersUtilization);
-        this._gpuDecodersUsage = this._decoderUsageCalculator.getUsage(gpuDecodersUtilization);
+    _processCoresStatistic() {
+        this._gpuEncodersUsage = this._encoderUsageCalculator.getUsage(this._gpuEncodersUtilization);
+        this._gpuDecodersUsage = this._decoderUsageCalculator.getUsage(this._gpuDecodersUtilization);
+        this._gpuEncodersUtilization = {};
+        this._gpuDecodersUtilization = {};
         this._isOverloaded = this._isMemOverloaded(this._gpuCoresMem)
             || this._isEncoderOverloaded(this._gpuEncodersUsage)
             || this._isDecoderOverloaded(this._gpuDecodersUsage);
