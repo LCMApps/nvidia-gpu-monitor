@@ -71,8 +71,8 @@ class NvidiaGpuMonitor extends EventEmitter {
         this._healthy = false;
 
         this._nvidiaGpuInfo = new NvidiaGpuInfo(nvidiaSmiPath);
-        this._gpuCoresNumber = new Set();
-        this._tmpGpuCoresNumber = new Set();
+        this._coreNumbers = new Set();
+        this._tmpCoreNumbers = new Set();
         this._gpuCoresMem = {};
         this._gpuEncodersUsage = {};
         this._gpuDecodersUsage = {};
@@ -147,7 +147,7 @@ class NvidiaGpuMonitor extends EventEmitter {
 
         const output = [];
 
-        for (const coreNumber of this._gpuCoresNumber.values()) {
+        for (const coreNumber of this._coreNumbers.values()) {
             output.push({
                 core: Number.parseInt(coreNumber),
                 mem: {
@@ -275,17 +275,17 @@ class NvidiaGpuMonitor extends EventEmitter {
             this._gpuEncodersUtilization[coreNumber] = Number.parseInt(matchResult[3]);
             this._gpuDecodersUtilization[coreNumber] = Number.parseInt(matchResult[4]);
 
-            if (this._tmpGpuCoresNumber.has(coreNumber)) {
-                this._gpuCoresNumber = this._tmpGpuCoresNumber;
-                this._tmpGpuCoresNumber = new Set();
+            if (this._tmpCoreNumbers.has(coreNumber)) {
+                this._coreNumbers = this._tmpCoreNumbers;
+                this._tmpCoreNumbers = new Set();
                 this._processCoresStatistic();
             }
 
-            this._tmpGpuCoresNumber.add(coreNumber);
+            this._tmpCoreNumbers.add(coreNumber);
 
-            if (this._tmpGpuCoresNumber.size === this._nvidiaGpuInfo.getCoreNumbers().length) {
-                this._gpuCoresNumber = this._tmpGpuCoresNumber;
-                this._tmpGpuCoresNumber = new Set();
+            if (this._tmpCoreNumbers.size === this._nvidiaGpuInfo.getCoreNumbers().length) {
+                this._coreNumbers = this._tmpCoreNumbers;
+                this._tmpCoreNumbers = new Set();
                 this._processCoresStatistic();
             }
         }
