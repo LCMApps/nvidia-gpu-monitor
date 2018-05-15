@@ -149,7 +149,7 @@ class NvidiaGpuMonitor extends EventEmitter {
 
         for (const coreNumber of this._coreNumbers.values()) {
             output.push({
-                core: Number.parseInt(coreNumber),
+                core: Number.parseInt(coreNumber, 10),
                 mem: {
                     free: this._gpuCoresMem[coreNumber].free
                 },
@@ -266,14 +266,14 @@ class NvidiaGpuMonitor extends EventEmitter {
 
             const coreNumber = matchResult[1];
             const totalMem = this._nvidiaGpuInfo.getTotalMemory(coreNumber);
-            const usedMem = Number.parseInt(matchResult[2]);
+            const usedMem = Number.parseInt(matchResult[2], 10);
 
             this._gpuCoresMem[coreNumber] = {
                 total: totalMem,
                 free: totalMem - usedMem
             };
-            this._gpuEncodersUtilization[coreNumber] = Number.parseInt(matchResult[3]);
-            this._gpuDecodersUtilization[coreNumber] = Number.parseInt(matchResult[4]);
+            this._gpuEncodersUtilization[coreNumber] = Number.parseInt(matchResult[3], 10);
+            this._gpuDecodersUtilization[coreNumber] = Number.parseInt(matchResult[4], 10);
 
             if (this._tmpCoreNumbers.has(coreNumber)) {
                 this._coreNumbers = this._tmpCoreNumbers;
