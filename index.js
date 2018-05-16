@@ -83,6 +83,7 @@ class NvidiaGpuMonitor extends EventEmitter {
         this._watcherErrorHandler = this._watcherErrorHandler.bind(this);
         this._watcherExitHandler = this._watcherExitHandler.bind(this);
         this._processGpuCoreInfo = this._processGpuCoreInfo.bind(this);
+        this._runNvidiaSmiWatcher = this._runNvidiaSmiWatcher.bind(this);
     }
 
     /**
@@ -240,9 +241,9 @@ class NvidiaGpuMonitor extends EventEmitter {
         this._dmonWatcher.stderr.destroy();
 
         if(this._status !== NvidiaGpuMonitor.STATUS_STOPPING) {
-            this._restartTimer = setTimeout(() => this._runNvidiaSmiWatcher(), DEFAULT_RESTART_TIMEOUT_MSEC);
+            this._restartTimer = setTimeout(this._runNvidiaSmiWatcher, DEFAULT_RESTART_TIMEOUT_MSEC);
 
-            const message = '"nvidia-smi dmon" finished with ' + code !== null ? `code ${code}` : `signal ${signal}`;
+            const message = '"nvidia-smi dmon" finished with ' + (code !== null ? `code ${code}` : `signal ${signal}`);
             this.emit('error', new Error(message));
             this.emit('unhealthy');
         } else {
@@ -272,8 +273,6 @@ class NvidiaGpuMonitor extends EventEmitter {
                 total: totalMem,
                 free: totalMem - usedMem
             };
-            this._gpuEncodersUtilization[coreNumber] = Number.parseInt(matchResult[3], 10);
-            this._gpuDecodersUtilization[coreNumber] = Number.parseInt(matchResult[4], 10);
 
             if (this._tmpCoreNumbers.has(coreNumber)) {
                 this._coreNumbers = this._tmpCoreNumbers;
@@ -281,6 +280,8 @@ class NvidiaGpuMonitor extends EventEmitter {
                 this._processCoresStatistic();
             }
 
+            this._gpuEncodersUtilization[coreNumber] = Number.parseInt(matchResult[3], 10);
+            this._gpuDecodersUtilization[coreNumber] = Number.parseInt(matchResult[4], 10);
             this._tmpCoreNumbers.add(coreNumber);
 
             if (this._tmpCoreNumbers.size === this._nvidiaGpuInfo.getCoreNumbers().length) {
@@ -288,11 +289,11 @@ class NvidiaGpuMonitor extends EventEmitter {
                 this._tmpCoreNumbers = new Set();
                 this._processCoresStatistic();
             }
-        }
 
-        if (!this._healthy) {
-            this._healthy = true;
-            this.emit('healthy');
+            if (!this._healthy) {
+                this._healthy = true;
+                this.emit('healthy');
+            }
         }
 
         this._healthyTimer = setTimeout(() => {

@@ -1,6 +1,6 @@
 # gpu    fb  bar1    sm   mem   enc   dec
 # Idx    MB    MB     %     %     %     %
-    0     0     2     0     0     0     0
+    0    146    2     0     0     2     1
     1     0     2     0     0     0     0
     2     0     2     0     0     0     0
     3     0     2     0     0     0     0
