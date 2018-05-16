@@ -20,14 +20,14 @@ describe('NvidiaGpuInfo methods tests', () => {
     it('parseGpuMetaData() scrapes info about GPU from nvidia-smi output', async () => {
         const expectedDriverVersion = '384.111';
         const expectedProductsName = {
-            '0': 'Tesla M60',
-            '1': 'Tesla M61'
+            0: 'Tesla M60',
+            1: 'Tesla M61'
         };
         const expectedTotalMem = {
-            '0': 8129,
-            '1': 8000
+            0: 8129,
+            1: 8000
         };
-        const expectedCoresNumber = ['0', '1'];
+        const expectedCoresNumber = [0, 1];
 
         const readCoresMetaDataStub = sinon.stub(nvidiaGpuInfo, '_readCoresMetaData');
         readCoresMetaDataStub.returns(Promise.resolve(coresMetaInfoOutput));

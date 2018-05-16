@@ -102,26 +102,26 @@ class NvidiaGpuMonitor extends EventEmitter {
         return this._nvidiaGpuInfo.getCoreNumbers();
     }
 
-    /**
-     * @throws {Error}
-     */
     stop() {
-        if (this._status !== NvidiaGpuMonitor.STATUS_STARTED) {
-            throw new Error('NvidiaGpuMonitor service is not running');
+        if (this._status === NvidiaGpuMonitor.STATUS_STOPPED) {
+            return;
         }
-
-        this._status = NvidiaGpuMonitor.STATUS_STOPPING;
 
         if (this._healthyTimer !== undefined) {
             clearTimeout(this._healthyTimer);
+            this._healthyTimer = undefined;
         }
+
+        this._healthy = false;
 
         if (this._restartTimer !== undefined) {
             clearTimeout(this._restartTimer);
             this._restartTimer = undefined;
+            this._status = NvidiaGpuMonitor.STATUS_STOPPED;
+            this.emit('stopped');
         } else {
+            this._status = NvidiaGpuMonitor.STATUS_STOPPING;
             this._dmonWatcher.kill();
-            this._healthy = false;
         }
     }
 
@@ -149,7 +149,7 @@ class NvidiaGpuMonitor extends EventEmitter {
 
         for (const coreNumber of this._coreNumbers.values()) {
             output.push({
-                core: Number.parseInt(coreNumber, 10),
+                core: coreNumber,
                 mem: {
                     free: this._gpuCoresMem[coreNumber].free
                 },
@@ -260,11 +260,11 @@ class NvidiaGpuMonitor extends EventEmitter {
             this._healthyTimer = undefined;
         }
 
-        let matchResult;
-        if ((matchResult = STAT_GRAB_PATTERN.exec(coreInfo)) !== null) {
+        const matchResult = STAT_GRAB_PATTERN.exec(coreInfo);
+        if (matchResult !== null) {
             STAT_GRAB_PATTERN.lastIndex = 0;
 
-            const coreNumber = matchResult[1];
+            const coreNumber = Number.parseInt(matchResult[1], 10);
             const totalMem = this._nvidiaGpuInfo.getTotalMemory(coreNumber);
             const usedMem = Number.parseInt(matchResult[2], 10);
 
@@ -326,8 +326,8 @@ class NvidiaGpuMonitor extends EventEmitter {
      * @returns {boolean}
      */
     _isMemOverloadedByFixedThreshold(minFree, coresMemCollection) {
-        for (const pciId in coresMemCollection) {
-            const {free, total} = coresMemCollection[pciId];
+        for (const coreNumber in coresMemCollection) {
+            const {free, total} = coresMemCollection[coreNumber];
             if (this._isMemOverloadedByIncorrectData(free, total) || free < minFree) {
                 return true;
             }
@@ -342,8 +342,8 @@ class NvidiaGpuMonitor extends EventEmitter {
      * @returns {boolean}
      */
     _isMemOverloadedByRateThreshold(highWatermark, coresMemCollection) {
-        for (const pciId in coresMemCollection) {
-            const {free, total} = coresMemCollection[pciId];
+        for (const coreNumber in coresMemCollection) {
+            const {free, total} = coresMemCollection[coreNumber];
             if (this._isMemOverloadedByIncorrectData(free, total) || ((total - free) / total) > highWatermark) {
                 return true;
             }
@@ -359,8 +359,8 @@ class NvidiaGpuMonitor extends EventEmitter {
      * @private
      */
     _isGpuUsageOverloadByRateThreshold(highWatermark, coresUsageCollection) {
-        for (const pciId in coresUsageCollection) {
-            if ((highWatermark * 100) < coresUsageCollection[pciId]) {
+        for (const coreNumber in coresUsageCollection) {
+            if ((highWatermark * 100) < coresUsageCollection[coreNumber]) {
                 return true;
             }
         }
