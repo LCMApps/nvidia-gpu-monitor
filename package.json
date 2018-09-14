@@ -5,8 +5,10 @@
   "main": "index.js",
   "scripts": {
     "lint": "eslint ./",
-    "test": "NODE_ENV=test mocha --opts tests/mocha.opts -R spec ./tests",
-    "test:coverage": "NODE_ENV=test istanbul cover ./node_modules/.bin/_mocha --print both -- --opts tests/mocha.opts -R spec ./tests"
+    "tests": "yarn run unit-tests",
+    "test:coverage": "NODE_ENV=test istanbul cover ./node_modules/.bin/_mocha --print both -- --opts tests/mocha.opts -R spec ./tests",
+    "unit-tests": "NODE_ENV=test mocha --opts tests/mocha.opts -R spec './tests/Unit/**/*.js'",
+    "coveralls": "NODE_ENV=test istanbul cover ./node_modules/mocha/bin/_mocha --report lcovonly -- --opts tests/mocha.opts -R spec ./tests/Unit && cat ./coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js && rm -rf ./coverage"
   },
   "repository": {
     "type": "git",

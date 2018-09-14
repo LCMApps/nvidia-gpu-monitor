@@ -5,7 +5,7 @@ const path = require('path');
 const sinon = require('sinon');
 const assert = require('chai').assert;
 
-const NvidiaGpuInfo = require('../../lib/NvidiaGpuInfo');
+const NvidiaGpuInfo = require('../../src/NvidiaGpuInfo');
 
 const coresMetaInfoOutput = fs.readFileSync(path.resolve(__dirname, 'data/gpuMetaInfo.txt'), 'utf8');
 

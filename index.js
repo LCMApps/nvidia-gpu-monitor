@@ -4,9 +4,9 @@ const EventEmitter = require('events');
 const spawn = require('child_process').spawn;
 const readline = require('readline');
 
-const GpuUtilization = require('./lib/GpuUtilization');
-const GpuUtilizationSma = require('./lib/GpuUtilizationSma');
-const NvidiaGpuInfo = require('./lib/NvidiaGpuInfo');
+const GpuUtilization = require('./src/GpuUtilization');
+const GpuUtilizationSma = require('./src/GpuUtilizationSma');
+const NvidiaGpuInfo = require('./src/NvidiaGpuInfo');
 
 const DEFAULT_RESTART_TIMEOUT_MSEC = 1000;
 const STAT_GRAB_PATTERN = new RegExp(

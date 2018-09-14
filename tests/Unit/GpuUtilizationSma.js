@@ -2,7 +2,7 @@
 
 const assert = require('chai').assert;
 
-const GpuUtilizationSma = require('../../lib/GpuUtilizationSma');
+const GpuUtilizationSma = require('../../src/GpuUtilizationSma');
 const gpuUtilization = {
     '00000000:06:00.0': 10,
     '00000000:07:00.0': 25
