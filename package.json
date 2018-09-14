@@ -1,7 +1,7 @@
 {
   "name": "nvidia-gpu-monitor",
   "version": "2.0.0",
-  "description": "",
+  "description": "Helps to monitor Nvidia GPU utilization using nvidia-smi",
   "main": "index.js",
   "scripts": {
     "lint": "eslint ./",
@@ -14,6 +14,14 @@
     "type": "git",
     "url": "https://github.com/LCMApps/nvidia-gpu-monitor.git"
   },
+  "keywords": [
+    "nvidia",
+    "gpu",
+    "monitor",
+    "monitoring",
+    "nvidia-smi",
+    "utilization"
+  ],
   "license": "MIT",
   "engines": {
     "node": ">=8.1"
@@ -26,5 +34,9 @@
     "istanbul": "^1.1.0-alpha.1",
     "mocha": "^3.4.2",
     "sinon": "^2.3.4"
-  }
+  },
+  "bugs": {
+    "url": "https://github.com/LCMApps/nvidia-gpu-monitor/issues"
+  },
+  "homepage": "https://github.com/LCMApps/nvidia-gpu-monitor"
 }

@@ -1,5 +1,7 @@
 # Nvidia GPU Monitor
 
+Helps to monitor Nvidia GPU utilization using nvidia-smi.
+
 [![NPM version](https://img.shields.io/npm/v/nvidia-gpu-monitor.svg)](https://www.npmjs.com/package/nvidia-gpu-monitor)
 [![Build Status](https://travis-ci.org/LCMApps/nvidia-gpu-monitor.svg?branch=master)](https://travis-ci.org/LCMApps/nvidia-gpu-monitor)
 [![Coverage Status](https://coveralls.io/repos/github/LCMApps/nvidia-gpu-monitor/badge.svg?branch=master)](https://coveralls.io/github/LCMApps/nvidia-gpu-monitor?branch=master)
