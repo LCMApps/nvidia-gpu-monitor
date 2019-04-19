@@ -33,7 +33,7 @@
     "deep-freeze": "^0.0.1",
     "eslint": "^4.0.0",
     "istanbul": "^1.1.0-alpha.1",
-    "mocha": "^3.4.2",
+    "mocha": "^6.1.4",
     "sinon": "^2.3.4"
   },
   "bugs": {
