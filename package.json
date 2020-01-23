@@ -1,6 +1,6 @@
 {
   "name": "nvidia-gpu-monitor",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Helps to monitor Nvidia GPU utilization using nvidia-smi",
   "main": "index.js",
   "scripts": {
